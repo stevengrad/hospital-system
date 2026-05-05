@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile.php
+    container_name: hospital-php
+    restart: unless-stopped
+    environment:
+      DB_HOST: database-1.c7q2cy4m6u0p.eu-central-1.rds.amazonaws.com
+      DB_PORT: 3306
+      DB_NAME: hospital_system
+      DB_USER: mysqldb2026
+      DB_PASSWORD: mysqldb2026
+      CHATBOT_API_URL: http://chatbot:8000/chat/free
+
+
+    volumes:
+      - .:/var/www/html
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: hospital-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - php
+      - chatbot
+      - face-api
+    volumes:
+      - .:/var/www/html
+
+  chatbot:
+    build:
+      context: ./hospital-assistant-python
+      dockerfile: Dockerfile
+    container_name: hospital-chatbot
+    restart: unless-stopped
+    environment:
+      MYSQL_URL: mysql+pymysql://mysqldb2026:mysqldb2026@database-1.c7q2cy4m6u0p.eu-central-1.rds.amazonaws.com:3306/hospital_system
+      SLOT_MINUTES: 30
+    ports:
+      - "8000:8000"
+
+  face-api:
+    build:
+      context: ./FFace_Recognition_System _Depi_stud
+      dockerfile: Dockerfile
+    container_name: hospital-face-api
+    restart: unless-stopped
+    ports:
+      - "5001:5001"

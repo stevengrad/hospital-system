@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Model Training Flowchart</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .comp-box {
+            padding: 20px;
+            border-radius: 10px;
+            border: 3px solid;
+        }
+        .detection {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+        .recognition {
+            border-color: #27ae60;
+            background: #e8f5e9;
+        }
+        .comp-box h3 {
+            margin-top: 0;
+        }
+        .mermaid {
+            background: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .key-points {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .point-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #11998e;
+        }
+        .point-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎭 Face Recognition Model Training</h1>
+        <p class="subtitle">Train a model to identify who the person is (not just detect faces)</p>
+        
+        <div class="comparison">
+            <div class="comp-box detection">
+                <h3>👁️ Face Detection</h3>
+                <p><strong>Question:</strong> "Where are the faces?"</p>
+                <p><strong>Output:</strong> Bounding boxes</p>
+                <p><strong>Example:</strong> YOLO, RetinaFace</p>
+                <p><strong>Use:</strong> Find faces in images</p>
+            </div>
+            
+            <div class="comp-box recognition">
+                <h3>🎭 Face Recognition</h3>
+                <p><strong>Question:</strong> "Who is this person?"</p>
+                <p><strong>Output:</strong> Identity/Name</p>
+                <p><strong>Example:</strong> FaceNet, ArcFace</p>
+                <p><strong>Use:</strong> Identify specific people</p>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 Training Overview</h3>
+            <p><strong>Goal:</strong> Train a model to create unique embeddings for each person's face</p>
+            <p><strong>Method:</strong> Metric learning with triplet/ArcFace loss</p>
+            <p><strong>Input:</strong> Multiple images per person (5-20 photos each)</p>
+            <p><strong>Output:</strong> Model that generates 512-dim embeddings for comparison</p>
+            <p><strong>Time:</strong> 4-12 hours depending on dataset size</p>
+        </div>
+
+        <div class="mermaid">
+graph TD
+    Start([Start Training]) --> DataPrep[Prepare Dataset]
+    
+    %% Phase 1: Dataset Preparation
+    DataPrep --> Structure[Create Structure:<br/>dataset/<br/>├── person1/<br/>│   ├── img1.jpg<br/>│   └── img2.jpg<br/>├── person2/<br/>└── person3/]
+    
+    Structure --> MinImages{Each person<br/>has 5+ images?}
+    MinImages -->|No| AddMore[Collect more photos<br/>per person]
+    AddMore --> MinImages
+    MinImages -->|Yes| CheckQuality[Verify Image Quality:<br/>- Clear faces<br/>- Good lighting<br/>- Different angles]
+    
+    CheckQuality --> Split[Split Dataset:<br/>80% train<br/>20% validation]
+    
+    %% Phase 2: Choose Architecture
+    Split --> ChooseArch[Choose Architecture]
+    ChooseArch --> ArchOptions{Select Base<br/>Model}
+    
+    ArchOptions -->|Fast| MobileNet[MobileFaceNet<br/>~4MB, 100 FPS]
+    ArchOptions -->|Balanced| ResNet50[ResNet50<br/>~100MB, 50 FPS]
+    ArchOptions -->|Accurate| ArcFace[ArcFace ResNet100<br/>~250MB, 30 FPS]
+    
+    MobileNet --> SelectLoss
+    ResNet50 --> SelectLoss
+    ArcFace --> SelectLoss
+    
+    %% Phase 3: Loss Function
+    SelectLoss[Select Loss Function]
+    SelectLoss --> LossOptions{Choose Loss}
+    
+    LossOptions -->|Simple| Triplet[Triplet Loss<br/>anchor-positive-negative]
+    LossOptions -->|Better| ArcLoss[ArcFace Loss<br/>angular margin]
+    LossOptions -->|Advanced| Combined[Combined Loss<br/>ArcFace + Center]
+    
+    Triplet --> ConfigTrain
+    ArcLoss --> ConfigTrain
+    Combined --> ConfigTrain
+    
+    %% Phase 4: Training Configuration
+    ConfigTrain[Configure Training]
+    ConfigTrain --> SetParams[Set Hyperparameters:<br/>- Embedding dim: 512<br/>- Batch size: 32-128<br/>- Learning rate: 0.001<br/>- Epochs: 50-200<br/>- Margin: 0.5]
+    
+    SetParams --> Augment[Data Augmentation:<br/>- Random flip<br/>- Rotation ±15°<br/>- Color jitter<br/>- Random crop]
+    
+    %% Phase 5: Training Loop
+    Augment --> StartTrain[Start Training]
+    StartTrain --> LoadBatch[Load Batch:<br/>Sample triplets or<br/>class-balanced batch]
+    
+    LoadBatch --> Forward[Forward Pass:<br/>Extract embeddings]
+    Forward --> CalcLoss[Calculate Loss:<br/>Triplet/ArcFace distance]
+    
+    CalcLoss --> Backward[Backward Pass:<br/>Update weights]
+    Backward --> ValidCheck{Validation<br/>Epoch?}
+    
+    ValidCheck -->|No| LoadBatch
+    ValidCheck -->|Yes| Validate[Validate:<br/>- Compute accuracy<br/>- Calc embedding quality<br/>- Check LFW/CFP metrics]
+    
+    Validate --> SaveBest{Best model<br/>so far?}
+    SaveBest -->|Yes| SaveModel[Save Checkpoint]
+    SaveBest -->|No| Continue1
+    SaveModel --> Continue1[Continue Training]
+    
+    Continue1 --> EpochDone{Epochs<br/>Complete?}
+    EpochDone -->|No| LoadBatch
+    EpochDone -->|Yes| FinishTrain[Training Complete]
+    
+    %% Phase 6: Evaluation
+    FinishTrain --> EvalModel[Evaluate Model]
+    EvalModel --> TestMetrics[Test Metrics:<br/>- Accuracy<br/>- Precision/Recall<br/>- ROC Curve<br/>- Embedding quality]
+    
+    TestMetrics --> Benchmarks[Test on Benchmarks:<br/>- LFW dataset<br/>- CFP dataset<br/>- AgeDB]
+    
+    Benchmarks --> GoodPerf{Performance<br/>Good?}
+    GoodPerf -->|No| Finetune[Fine-tune:<br/>- Adjust learning rate<br/>- More data<br/>- Different augmentation]
+    Finetune --> StartTrain
+    
+    GoodPerf -->|Yes| ExtractEmbed[Create Embedding<br/>Extractor Function]
+    
+    %% Phase 7: Deployment
+    ExtractEmbed --> BuildDB[Build Face Database:<br/>Extract embeddings<br/>for known people]
+    
+    BuildDB --> CreateMatcher[Create Matcher:<br/>Compare embeddings<br/>using cosine similarity]
+    
+    CreateMatcher --> Export[Export Model:<br/>- ONNX<br/>- TensorRT<br/>- SavedModel]
+    
+    Export --> Deploy[Deploy:<br/>- Real-time recognition<br/>- Batch processing<br/>- Edge devices]
+    
+    Deploy --> End([Complete])
+    
+    %% Styling
+    classDef dataPrep fill:#3498db,stroke:#2874a6,stroke-width:2px,color:#fff
+    classDef architecture fill:#9b59b6,stroke:#7d3c98,stroke-width:2px,color:#fff
+    classDef training fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    classDef evaluation fill:#f39c12,stroke:#d68910,stroke-width:2px,color:#fff
+    classDef deployment fill:#27ae60,stroke:#1e8449,stroke-width:2px,color:#fff
+    classDef decision fill:#16a085,stroke:#138d75,stroke-width:2px,color:#fff
+    classDef terminal fill:#34495e,stroke:#2c3e50,stroke-width:2px,color:#fff
+    
+    class DataPrep,Structure,CheckQuality,Split dataPrep
+    class ChooseArch,MobileNet,ResNet50,ArcFace,SelectLoss,Triplet,ArcLoss,Combined architecture
+    class ConfigTrain,SetParams,Augment,StartTrain,LoadBatch,Forward,CalcLoss,Backward,SaveModel,Continue1 training
+    class Validate,EvalModel,TestMetrics,Benchmarks evaluation
+    class ExtractEmbed,BuildDB,CreateMatcher,Export,Deploy deployment
+    class MinImages,ArchOptions,LossOptions,ValidCheck,SaveBest,EpochDone,GoodPerf decision
+    class Start,End terminal
+        </div>
+
+        <div class="key-points">
+            <div class="point-card">
+                <h3>📊 Dataset Requirements</h3>
+                <ul>
+                    <li>5-20 images per person</li>
+                    <li>Minimum 10 people</li>
+                    <li>100-1000 total identities ideal</li>
+                    <li>Different angles & lighting</li>
+                    <li>Clear, frontal faces</li>
+                </ul>
+            </div>
+            
+            <div class="point-card">
+                <h3>🏗️ Model Architecture</h3>
+                <ul>
+                    <li>Backbone: ResNet, MobileNet</li>
+                    <li>Embedding: 128/256/512-dim</li>
+                    <li>Loss: Triplet, ArcFace, CosFace</li>
+                    <li>Output: Normalized embeddings</li>
+                    <li>Comparison: Cosine similarity</li>
+                </ul>
+            </div>
+            
+            <div class="point-card">
+                <h3>🎯 Training Process</h3>
+                <ul>
+                    <li>Metric learning approach</li>
+                    <li>Triplet/pair sampling</li>
+                    <li>Hard negative mining</li>
+                    <li>Batch size: 32-128</li>
+                    <li>Epochs: 50-200</li>
+                </ul>
+            </div>
+            
+            <div class="point-card">
+                <h3>✅ Evaluation Metrics</h3>
+                <ul>
+                    <li>Verification accuracy</li>
+                    <li>LFW benchmark: >99%</li>
+                    <li>TAR@FAR curves</li>
+                    <li>Embedding separation</li>
+                    <li>Inference speed</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
