@@ -242,6 +242,99 @@ def verify_face():
     "distance": float(distance)
 })
 
+@app.route("/register_face", methods=["POST", "OPTIONS"])
+@app.route("/face/register_face", methods=["POST", "OPTIONS"])
+def register_face():
+    global database
 
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"success": False, "message": "No JSON received"}), 400
+
+    username = data.get("username")
+    images = data.get("images", [])
+
+    if not username or not images:
+        return jsonify({"success": False, "message": "Username or images missing"}), 400
+
+    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
+    person_dir = os.path.join(DB_FOLDER, safe_username)
+    os.makedirs(person_dir, exist_ok=True)
+
+    saved = 0
+
+    for i, item in enumerate(images):
+        img_data = item.get("image") if isinstance(item, dict) else item
+
+        try:
+            frame = decode_base64_image(img_data)
+
+            bboxes = detect_faces(frame)
+
+            if not bboxes:
+                print("No face detected → saving full image", i)
+                face_img = frame
+            else:
+                bboxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
+                x1, y1, x2, y2 = bboxes[0]
+
+                x1 = max(0, x1)
+                y1 = max(0, y1)
+                x2 = min(frame.shape[1], x2)
+                y2 = min(frame.shape[0], y2)
+
+                face_img = frame[y1:y2, x1:x2]
+
+            file_path = os.path.join(person_dir, f"{safe_username}_{i+1}.jpg")
+            cv2.imwrite(file_path, face_img)
+
+            saved += 1
+
+        except Exception as e:
+            print("Error saving face image:", e)
+
+    if os.path.exists(REPRESENTATIONS_FILE):
+        os.remove(REPRESENTATIONS_FILE)
+
+    database = load_or_create_database()
+
+    return jsonify({
+        "success": True,
+        "saved": saved,
+        "username": safe_username,
+        "database_size": len(database)
+    })
+from flask import send_from_directory
+
+@app.route("/face/list_faces/<username>", methods=["GET"])
+def list_faces(username):
+    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
+    person_dir = os.path.join(DB_FOLDER, safe_username)
+
+    if not os.path.exists(person_dir):
+        return jsonify({"success": False, "message": "Folder not found", "path": person_dir}), 404
+
+    files = [
+        f for f in os.listdir(person_dir)
+        if f.lower().endswith((".jpg", ".jpeg", ".png"))
+    ]
+
+    return jsonify({
+        "success": True,
+        "username": safe_username,
+        "path": person_dir,
+        "files": files,
+        "count": len(files)
+    })
+
+
+@app.route("/face/view_face/<username>/<filename>", methods=["GET"])
+def view_face(username, filename):
+    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
+    person_dir = os.path.join(DB_FOLDER, safe_username)
+    return send_from_directory(person_dir, filename)
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=False)

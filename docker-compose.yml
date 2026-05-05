@@ -54,3 +54,5 @@ services:
     restart: unless-stopped
     ports:
       - "5001:5001"
+    volumes:
+      - ./FFace_Recognition_System _Depi_stud/build_database/db_folder:/app/build_database/db_folder
