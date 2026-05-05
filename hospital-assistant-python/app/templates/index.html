@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hospital Chat</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f6f7fb; margin:0; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    .card { background:#fff; border:1px solid #e6e8ef; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+    .header { padding:16px 18px; border-bottom:1px solid #eee; font-weight:700; }
+    .chat { padding: 16px 18px; height: 60vh; overflow:auto; }
+    .msg { margin: 10px 0; display:flex; gap:10px; }
+    .bubble { padding: 10px 12px; border-radius: 12px; max-width: 80%; line-height: 1.4; white-space: pre-wrap; }
+    .me { justify-content:flex-start; }
+    .me .bubble { background:#eef2ff; border:1px solid #dbe3ff; }
+    .bot { justify-content:flex-end; }
+    .bot .bubble { background:#ecfdf5; border:1px solid #c7f2df; }
+
+    .footer { border-top:1px solid #eee; padding: 12px 12px; display:flex; gap:10px; align-items:center; }
+    input { flex:1; padding: 12px; border:1px solid #ddd; border-radius: 10px; font-size: 14px; }
+    #patient { flex: 0 0 140px; max-width: 140px; }
+    button { padding: 12px 14px; border:0; border-radius: 10px; background:#111827; color:#fff; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+
+    .hint { padding: 12px 18px; color:#475467; font-size: 13px; border-top:1px dashed #eee; }
+    code { background:#f2f4f7; padding: 2px 6px; border-radius: 6px; }
+
+    #slotsContainer { padding: 8px 18px 18px; }
+    .slots-title { margin: 8px 0 6px; font-weight: 700; color:#111827; }
+    .slots-day { margin: 10px 0 6px; font-weight: 600; color:#1f2937; }
+    .slots-row { display:flex; flex-wrap:wrap; gap:8px; }
+    .slot-btn {
+      padding: 8px 10px;
+      border: 1px solid #2b6cb0;
+      border-radius: 10px;
+      background: #ebf8ff;
+      cursor: pointer;
+      color: #0b4a6f;
+      font-size: 13px;
+    }
+    .slot-btn:hover { background:#dbeafe; }
+
+    .debug { font-size: 12px; color:#667085; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">Medical Chatbot</div>
+
+      <div class="chat" id="chat"></div>
+      <div id="slotsContainer"></div>
+
+      <div class="footer">
+        <input id="patient" placeholder="PatientID (اختياري)" />
+        <input id="text" placeholder="ابدأ بكتابة PatientID ثم مواعيد دكتور..." />
+        <button id="send">Send</button>
+      </div>
+
+      <div class="hint">
+        أمثلة سريعة:
+        <div>1) <code>1</code> (ده PatientID)</div>
+        <div>2) <code>مواعيد دكتور Mona Shawky</code></div>
+        <div>3) <code>مخاطر Brufen</code></div>
+        <div>4) <code>ابدأ من جديد</code> (Reset)</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("text");
+    const patientInput = document.getElementById("patient");
+    const btn = document.getElementById("send");
+    const slotsContainer = document.getElementById("slotsContainer");
+
+    function addMsg(who, text) {
+      const row = document.createElement("div");
+      row.className = "msg " + (who === "me" ? "me" : "bot");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+
+      row.appendChild(bubble);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addDebug(text) {
+      const row = document.createElement("div");
+      row.className = "msg bot";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble debug";
+      bubble.textContent = text;
+      row.appendChild(bubble);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function clearSlots() {
+      slotsContainer.innerHTML = "";
+    }
+
+    function getSlotsFromResponse(data) {
+      if (data && data.data && Array.isArray(data.data.slots)) return data.data.slots;
+      if (data && Array.isArray(data.slots)) return data.slots;
+      if (data && data.data && data.data.data && Array.isArray(data.data.data.slots)) return data.data.data.slots;
+      return [];
+    }
+
+    function renderSlotsButtons(slots) {
+      clearSlots();
+      if (!slots || slots.length === 0) return;
+
+      const title = document.createElement("div");
+      title.className = "slots-title";
+      title.textContent = "اختاري ميعاد للحجز:";
+      slotsContainer.appendChild(title);
+
+      const byDate = {};
+      for (const s of slots) {
+        const start = s.start || s.Start || s.start_dt;
+        if (!start) continue;
+        const d = String(start).slice(0, 10);
+        byDate[d] = byDate[d] || [];
+        byDate[d].push(s);
+      }
+
+      const dates = Object.keys(byDate).sort();
+
+      for (const d of dates) {
+        byDate[d].sort((a,b) => String((a.start||a.Start||"")).localeCompare(String((b.start||b.Start||""))));
+
+        const dayTitle = document.createElement("div");
+        dayTitle.className = "slots-day";
+        dayTitle.textContent = d;
+        slotsContainer.appendChild(dayTitle);
+
+        const row = document.createElement("div");
+        row.className = "slots-row";
+        slotsContainer.appendChild(row);
+
+        for (const s of byDate[d]) {
+          const start = s.start || s.Start || s.start_dt;
+          const doctorId = s.doctor_id ?? s.doctorId ?? s.DoctorID;
+          const branchId = s.branch_id ?? s.branchId ?? s.BranchID;
+
+          const btnSlot = document.createElement("button");
+          btnSlot.type = "button";
+          btnSlot.className = "slot-btn";
+
+          const timeText = start ? String(start).slice(11, 16) : "وقت";
+          btnSlot.textContent = timeText;
+
+          btnSlot.onclick = async () => {
+            btnSlot.disabled = true;
+
+            try {
+              const res = await fetch("book_api.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  doctor_id: doctorId,
+                  branch_id: branchId,
+                  start: start
+                })
+              });
+
+              const raw = await res.text();
+              let data = null;
+              try { data = JSON.parse(raw); } catch(e) {}
+
+              if (res.ok) {
+                clearSlots();
+                addMsg("bot", (data && data.message) ? data.message : "تم الحجز بنجاح.");
+              } else {
+                let msg = "فشل الحجز.";
+                if (data && data.message) msg = data.message;
+                else if (data && data.detail) msg = data.detail;
+                addMsg("bot", msg);
+                btnSlot.disabled = false;
+              }
+            } catch (e) {
+              addMsg("bot", "Network error: " + e.toString());
+              btnSlot.disabled = false;
+            }
+          };
+
+          row.appendChild(btnSlot);
+        }
+      }
+    }
+
+    async function send() {
+      clearSlots();
+
+      const text = input.value.trim();
+      if (!text) return;
+
+      const pid = (patientInput.value || "").trim();
+
+      addMsg("me", text);
+      input.value = "";
+      btn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append("message", text);
+
+        // اختياري: لو عايزة PHP يخزن patient_id
+        if (pid) {
+          formData.append("patient_id", pid);
+        }
+
+        const res = await fetch("chat_api.php", {
+          method: "POST",
+          body: formData
+        });
+
+        const raw = await res.text();
+        let data = null;
+        try { data = JSON.parse(raw); } catch {}
+
+        if (!res.ok) {
+          addMsg("bot", "Server error:\n" + (data ? JSON.stringify(data, null, 2) : raw));
+          return;
+        }
+
+        addMsg("bot", (data && data.reply) ? data.reply : (data ? JSON.stringify(data, null, 2) : raw));
+
+        if (data && data.intent === "patient_id_set" && data.data && data.data.patient_id) {
+          patientInput.value = data.data.patient_id;
+        }
+
+        const slots = getSlotsFromResponse(data);
+        addDebug("DEBUG intent=" + (data ? data.intent : "null") + " slots=" + (slots ? slots.length : 0));
+
+        if (slots && slots.length > 0) {
+          renderSlotsButtons(slots);
+        }
+
+      } catch (e) {
+        addMsg("bot", "Network error: " + e.toString());
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    btn.addEventListener("click", send);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+
+    addMsg("bot", "أهلًا! اكتب/ي PatientID (رقم فقط) أولًا، وبعدها اكتب/ي: مواعيد دكتور <الاسم>.");
+  </script>
+</body>
+</html>

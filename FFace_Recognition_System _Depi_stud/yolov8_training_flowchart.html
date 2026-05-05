@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv8 Face Detection Training Flowchart</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .info-box h3 {
+            margin-top: 0;
+        }
+        .mermaid {
+            background: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .phase-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .phase-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-top: 4px solid;
+        }
+        .phase-card h3 {
+            margin-top: 0;
+        }
+        .phase1 { border-top-color: #3498db; }
+        .phase2 { border-top-color: #e74c3c; }
+        .phase3 { border-top-color: #2ecc71; }
+        .phase4 { border-top-color: #f39c12; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 YOLOv8 Face Detection Training</h1>
+        <p class="subtitle">Complete workflow from dataset preparation to trained model</p>
+        
+        <div class="info-box">
+            <h3>📋 Training Overview</h3>
+            <p><strong>Goal:</strong> Train a custom YOLOv8 model to detect faces in images</p>
+            <p><strong>Input:</strong> Face detection dataset (images + annotations)</p>
+            <p><strong>Output:</strong> Trained model weights (.pt file)</p>
+            <p><strong>Time:</strong> ~2-6 hours depending on dataset size and GPU</p>
+        </div>
+
+        <div class="mermaid">
+graph TD
+    Start([Start Training Process]) --> PrepData[Prepare Dataset]
+    
+    %% Phase 1: Dataset Preparation
+    PrepData --> GetData{Have<br/>Dataset?}
+    GetData -->|No| Download[Download Public Dataset:<br/>WIDER FACE, FDDB,<br/>or CelebA]
+    GetData -->|Yes| UseOwn[Use Your Own Images]
+    
+    Download --> Organize
+    UseOwn --> Organize[Organize Dataset Structure]
+    
+    Organize --> Structure[Create Folder Structure:<br/>dataset/<br/>├── images/<br/>│   ├── train/<br/>│   └── val/<br/>└── labels/<br/>    ├── train/<br/>    └── val/]
+    
+    Structure --> Annotate{Images<br/>Labeled?}
+    Annotate -->|No| LabelTool[Use Labeling Tool:<br/>LabelImg, CVAT,<br/>or Roboflow]
+    Annotate -->|Yes| CheckFormat
+    
+    LabelTool --> Export[Export to YOLO Format:<br/>class x_center y_center width height]
+    Export --> CheckFormat[Verify Label Format]
+    
+    CheckFormat --> CreateYAML[Create data.yaml:<br/>- Define paths<br/>- Define classes<br/>- Train/val split]
+    
+    %% Phase 2: Environment Setup
+    CreateYAML --> InstallPkg[Install Requirements:<br/>pip install ultralytics]
+    InstallPkg --> CheckGPU{GPU<br/>Available?}
+    
+    CheckGPU -->|Yes| SetCUDA[Configure CUDA:<br/>torch.cuda.is_available]
+    CheckGPU -->|No| UseCPU[Use CPU<br/>Training slower]
+    
+    SetCUDA --> SelectModel
+    UseCPU --> SelectModel[Select Base Model:<br/>yolov8n, yolov8s,<br/>yolov8m, yolov8l]
+    
+    %% Phase 3: Training
+    SelectModel --> ConfigTrain[Configure Training:<br/>- Epochs 100-300<br/>- Batch size 16-32<br/>- Image size 640<br/>- Learning rate auto]
+    
+    ConfigTrain --> StartTrain[Start Training:<br/>model.train]
+    
+    StartTrain --> Monitor[Monitor Training:<br/>- Loss curves<br/>- mAP metrics<br/>- Precision/Recall<br/>- Validation results]
+    
+    Monitor --> EpochLoop{Training<br/>Complete?}
+    EpochLoop -->|No| Continue[Continue Training<br/>Next Epoch]
+    Continue --> Monitor
+    
+    EpochLoop -->|Yes| SaveWeights[Save Best Weights:<br/>runs/detect/train/weights/<br/>best.pt]
+    
+    %% Phase 4: Evaluation
+    SaveWeights --> Validate[Validate Model:<br/>model.val]
+    Validate --> CheckMetrics{Metrics<br/>Good?}
+    
+    CheckMetrics -->|No| Tune[Tune Hyperparameters:<br/>- Adjust learning rate<br/>- Change augmentation<br/>- Modify architecture]
+    Tune --> StartTrain
+    
+    CheckMetrics -->|Yes| TestModel[Test on New Images:<br/>model.predict]
+    
+    TestModel --> Visualize[Visualize Results:<br/>- Confusion matrix<br/>- Prediction examples<br/>- Error analysis]
+    
+    Visualize --> Export[Export Model:<br/>- ONNX format<br/>- TensorRT<br/>- CoreML]
+    
+    Export --> Deploy[Deploy Model:<br/>- Production use<br/>- Edge devices<br/>- Cloud inference]
+    
+    Deploy --> End([Training Complete])
+    
+    %% Styling
+    classDef dataPrep fill:#3498db,stroke:#2874a6,stroke-width:2px,color:#fff
+    classDef envSetup fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    classDef training fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#fff
+    classDef evaluation fill:#f39c12,stroke:#d68910,stroke-width:2px,color:#fff
+    classDef decision fill:#9b59b6,stroke:#7d3c98,stroke-width:2px,color:#fff
+    classDef terminal fill:#34495e,stroke:#2c3e50,stroke-width:2px,color:#fff
+    
+    class PrepData,Organize,Structure,LabelTool,Export,CheckFormat,CreateYAML dataPrep
+    class InstallPkg,SetCUDA,UseCPU,SelectModel,ConfigTrain envSetup
+    class StartTrain,Monitor,Continue,SaveWeights training
+    class Validate,TestModel,Visualize,Export,Deploy evaluation
+    class GetData,Annotate,CheckGPU,EpochLoop,CheckMetrics decision
+    class Start,End terminal
+        </div>
+
+        <div class="phase-cards">
+            <div class="phase-card phase1">
+                <h3>📊 Phase 1: Data Preparation</h3>
+                <ul>
+                    <li>Collect face images</li>
+                    <li>Label bounding boxes</li>
+                    <li>YOLO format conversion</li>
+                    <li>Train/val split (80/20)</li>
+                    <li>Create data.yaml</li>
+                </ul>
+                <strong>Time: 2-4 hours</strong>
+            </div>
+            
+            <div class="phase-card phase2">
+                <h3>⚙️ Phase 2: Setup</h3>
+                <ul>
+                    <li>Install ultralytics</li>
+                    <li>Configure GPU/CUDA</li>
+                    <li>Select model size</li>
+                    <li>Set hyperparameters</li>
+                    <li>Verify environment</li>
+                </ul>
+                <strong>Time: 15-30 minutes</strong>
+            </div>
+            
+            <div class="phase-card phase3">
+                <h3>🚀 Phase 3: Training</h3>
+                <ul>
+                    <li>Start training loop</li>
+                    <li>Monitor metrics</li>
+                    <li>Track loss curves</li>
+                    <li>Early stopping</li>
+                    <li>Save checkpoints</li>
+                </ul>
+                <strong>Time: 2-6 hours</strong>
+            </div>
+            
+            <div class="phase-card phase4">
+                <h3>✅ Phase 4: Evaluation</h3>
+                <ul>
+                    <li>Validate performance</li>
+                    <li>Test predictions</li>
+                    <li>Analyze errors</li>
+                    <li>Export model</li>
+                    <li>Deploy to production</li>
+                </ul>
+                <strong>Time: 30-60 minutes</strong>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
