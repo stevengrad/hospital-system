@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Flowchart - Simple</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .legend {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 3px;
+            border: 2px solid #333;
+        }
+        .mermaid {
+            background: white;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Face Recognition System - Simple Flow</h1>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-box" style="background: #4A90E2;"></div>
+                <span>Process</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #F39C12;"></div>
+                <span>Decision</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #27AE60;"></div>
+                <span>Database</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #8E44AD;"></div>
+                <span>Start/End</span>
+            </div>
+        </div>
+
+        <div class="mermaid">
+graph TD
+    Start([Start]) --> CheckDB{Database Exists?}
+    
+    %% Database Creation
+    CheckDB -->|No| CreateDB[Create Database]
+    CreateDB --> ScanFolders[Scan db_folder/<br/>Load person images]
+    ScanFolders --> GenEmbed[Generate Embeddings<br/>for each person]
+    GenEmbed --> SaveDB[(Save to<br/>representations.pkl)]
+    SaveDB --> StartCam
+    
+    %% Load Existing Database
+    CheckDB -->|Yes| LoadDB[(Load Database)]
+    LoadDB --> StartCam[Start Camera]
+    
+    %% Main Loop
+    StartCam --> Capture[Capture Frame]
+    Capture --> Detect[Detect Faces<br/>YOLOv5]
+    
+    Detect --> Found{Face Found?}
+    Found -->|No| Display1[Display Frame]
+    Display1 --> Continue
+    
+    Found -->|Yes| Crop[Crop Face]
+    Crop --> Extract[Extract Embedding<br/>FaceNet]
+    Extract --> Compare[Compare with<br/>Database]
+    
+    Compare --> Match{Match Found?<br/>distance ≤ 0.6}
+    Match -->|Yes| ShowName[Show Person Name<br/>Green Box]
+    Match -->|No| ShowUnknown[Show 'Unknown'<br/>Red Box]
+    
+    ShowName --> Display2[Display Frame]
+    ShowUnknown --> Display2
+    Display2 --> Continue{Press 'q'?}
+    
+    Continue -->|No| Capture
+    Continue -->|Yes| End([End])
+    
+    %% Styling
+    classDef process fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef decision fill:#F39C12,stroke:#D68910,stroke-width:2px,color:#fff
+    classDef database fill:#27AE60,stroke:#1E8449,stroke-width:2px,color:#fff
+    classDef terminal fill:#8E44AD,stroke:#6C3483,stroke-width:2px,color:#fff
+    
+    class Detect,Extract,Compare,GenEmbed,Crop process
+    class CheckDB,Found,Match,Continue decision
+    class SaveDB,LoadDB database
+    class Start,End,StartCam terminal
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+    </script>
+</body>
+</html>

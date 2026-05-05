@@ -1,0 +1,16 @@
+.git
+.gitignore
+.vscode
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+
+Face_rec_training
+detector_training
+YOLOv8 Face Detection Training Flowchart_files
+*.html

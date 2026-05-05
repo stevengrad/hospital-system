@@ -1,0 +1,18 @@
+# YOLOv8 Face Detection Dataset Configuration
+# This file defines the dataset structure and classes for training
+
+# Dataset paths
+path: ./dataset  # Root directory (relative to this file or absolute path)
+train: images/train  # Training images (relative to 'path')
+val: images/val      # Validation images (relative to 'path')
+test: images/test    # Optional: Test images (relative to 'path')
+
+# Classes
+nc: 1  # Number of classes
+names: ['face']  # Class names
+
+# Optional: Dataset info
+# dataset_name: "Face Detection Dataset"
+# version: "1.0"
+# author: "Your Name"
+# date: "2025-01-01"
