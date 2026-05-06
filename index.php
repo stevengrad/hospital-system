@@ -433,7 +433,7 @@ body{
                     <span class="icon"><i class="fa-solid fa-user"></i></span>
                     <input class="form-input" type="text" name="username"
                            placeholder="<?= ($lang === 'ar')
-                                ? 'اسم المستخدم (الأطباء يبدأون بـ dr)'
+                                ? 'اسم المستخدم '
                                 : 'Username ' ?>"
                            required>
                 </div>
