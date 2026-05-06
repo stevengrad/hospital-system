@@ -15,6 +15,19 @@ services:
       DB_PASSWORD: mysqldb2026
       CHATBOT_API_URL: http://chatbot:8000/chat/free
 
+      # Face API URL used by register.php
+      FACE_API_URL: http://face-api:5001/face/register_face
+
+      # Optional only if you still use reload_db somewhere
+      FACE_RELOAD_URL: http://face-api:5001/reload_db
+
+      # Recommended: move Gmail credentials here instead of hardcoding in PHP
+      # SMTP_USER: cairohospitals0@gmail.com
+      # SMTP_PASS: your_gmail_app_password
+
+    depends_on:
+      - chatbot
+      - face-api
 
     volumes:
       - .:/var/www/html
@@ -52,7 +65,17 @@ services:
       dockerfile: Dockerfile
     container_name: hospital-face-api
     restart: unless-stopped
+    environment:
+      # S3 settings for face images and embeddings
+      FACE_S3_BUCKET: cairo-hospital-face-images-137068224200
+      AWS_REGION: eu-central-1
+      FACE_S3_PREFIX: faces
+
+      # Optional DeepFace settings
+      FACE_MODEL_NAME: Facenet
+      FACE_DETECTOR_BACKEND: opencv
+      FACE_DISTANCE_METRIC: cosine
+      FACE_THRESHOLD: 0.40
+
     ports:
       - "5001:5001"
-    volumes:
-      - ./FFace_Recognition_System _Depi_stud/build_database/db_folder:/app/build_database/db_folder

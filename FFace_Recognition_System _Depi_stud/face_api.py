@@ -1,340 +1,313 @@
 import os
 import io
-import cv2
-import base64
+import re
 import pickle
+import base64
+from datetime import datetime
+
+import boto3
+import cv2
 import numpy as np
-import torch
 from flask import Flask, request, jsonify
-from ultralytics import YOLO
-from facenet_pytorch import InceptionResnetV1
-from PIL import Image
+from flask_cors import CORS
+from deepface import DeepFace
+
 
 app = Flask(__name__)
+CORS(app)
 
-# =========================
-# PATHS
-# =========================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_NAME = os.getenv("FACE_MODEL_NAME", "Facenet")
+DETECTOR_BACKEND = os.getenv("FACE_DETECTOR_BACKEND", "opencv")
+DISTANCE_METRIC = os.getenv("FACE_DISTANCE_METRIC", "cosine")
+THRESHOLD = float(os.getenv("FACE_THRESHOLD", "0.40"))
 
-DB_FOLDER = os.path.join(BASE_DIR, "build_database", "db_folder")
-YOLO_WEIGHTS = os.path.join(BASE_DIR, "yolov8l_100e.pt")
-FACENET_WEIGHTS = os.path.join(BASE_DIR, "20180402-114759-vggface2.pt")
-REPRESENTATIONS_FILE = os.path.join(DB_FOLDER, "representations.pkl")
+S3_BUCKET = os.getenv("FACE_S3_BUCKET", "")
+AWS_REGION = os.getenv("AWS_REGION", "eu-central-1")
+S3_PREFIX = os.getenv("FACE_S3_PREFIX", "faces").strip("/")
 
-RECOGNITION_THRESHOLD = 1.4
-DETECTION_CONFIDENCE = 0.3
+REPRESENTATIONS_KEY = f"{S3_PREFIX}/representations.pkl"
 
-# =========================
-# CORS
-# =========================
-@app.after_request
-def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    response.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
-    return response
-
-# =========================
-# LOAD MODELS
-# =========================
-print("Loading YOLO model...")
-face_detector = YOLO(YOLO_WEIGHTS)
-
-print("Loading FaceNet model...")
-face_recognizer = InceptionResnetV1(classify=False, pretrained=None)
-state_dict = torch.load(FACENET_WEIGHTS, map_location="cpu")
-
-# remove classification layer weights if present
-state_dict.pop("logits.weight", None)
-state_dict.pop("logits.bias", None)
-
-face_recognizer.load_state_dict(state_dict, strict=False)
-face_recognizer.eval()
-print("Models loaded successfully!")
-
-# =========================
-# HELPERS
-# =========================
-def preprocess_face(face_img):
-    face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-    face_resized = cv2.resize(face_rgb, (160, 160))
-    face_pixels = np.asarray(face_resized).astype("float32")
-
-    mean, std = face_pixels.mean(), face_pixels.std()
-    if std == 0:
-        std = 1.0
-    face_pixels = (face_pixels - mean) / std
-
-    face_tensor = torch.from_numpy(face_pixels.transpose((2, 0, 1))).float()
-    face_tensor = face_tensor.unsqueeze(0)
-    return face_tensor
+s3_client = None
+if S3_BUCKET:
+    s3_client = boto3.client("s3", region_name=AWS_REGION)
 
 
-def extract_embedding(face_tensor):
-    with torch.no_grad():
-        embedding = face_recognizer(face_tensor)
-    embedding = embedding.detach().cpu().numpy()
-    embedding = embedding / np.sqrt(np.sum(np.multiply(embedding, embedding)))
-    return embedding
+def safe_username(username: str) -> str:
+    username = username.strip().lower()
+    username = re.sub(r"[^a-zA-Z0-9_.-]", "_", username)
+    return username or "unknown"
 
 
-def calculate_distance(embedding1, embedding2):
-    return np.linalg.norm(embedding1 - embedding2)
-
-
-def detect_faces(frame):
-    results = face_detector.predict(frame, conf=DETECTION_CONFIDENCE, verbose=False)
-
-    bboxes = []
-    if len(results) > 0 and results[0].boxes is not None:
-        boxes = results[0].boxes.xyxy.cpu().numpy()
-        for box in boxes:
-            x1, y1, x2, y2 = map(int, box)
-            bboxes.append([x1, y1, x2, y2])
-    return bboxes
-
-
-def load_or_create_database():
-    if not os.path.exists(DB_FOLDER):
-        os.makedirs(DB_FOLDER, exist_ok=True)
-
-    if os.path.exists(REPRESENTATIONS_FILE):
-        print(f"Loading existing database from {REPRESENTATIONS_FILE}")
-        with open(REPRESENTATIONS_FILE, "rb") as f:
-            database = pickle.load(f)
-        print(f"Loaded {len(database)} embeddings")
-        return database
-
-    print(f"Creating new database from {DB_FOLDER}")
-    database = []
-
-    person_folders = [
-        f for f in os.listdir(DB_FOLDER)
-        if os.path.isdir(os.path.join(DB_FOLDER, f))
-    ]
-
-    for person_name in person_folders:
-        person_path = os.path.join(DB_FOLDER, person_name)
-        image_files = [
-            f for f in os.listdir(person_path)
-            if f.lower().endswith((".jpg", ".jpeg", ".png", ".bmp"))
-        ]
-
-        for img_file in image_files:
-            img_path = os.path.join(person_path, img_file)
-            img = cv2.imread(img_path)
-            if img is None:
-                continue
-
-            try:
-                face_tensor = preprocess_face(img)
-                embedding = extract_embedding(face_tensor)
-                database.append([person_name, embedding])
-                print(f"Added {img_file}")
-            except Exception as e:
-                print(f"Error processing {img_file}: {e}")
-
-    with open(REPRESENTATIONS_FILE, "wb") as f:
-        pickle.dump(database, f)
-
-    print(f"Database saved with {len(database)} embeddings")
-    return database
-
-database = load_or_create_database()
-
-
-def decode_base64_image(data_url):
+def decode_base64_image(data_url: str):
+    """
+    Accepts:
+    data:image/jpeg;base64,xxxx
+    or raw base64 xxxx
+    """
     if "," in data_url:
         data_url = data_url.split(",", 1)[1]
 
     image_bytes = base64.b64decode(data_url)
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    image_np = np.array(image)
-    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-    return image_bgr
+    np_arr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+    if img is None:
+        raise ValueError("Invalid image data")
+
+    return img
 
 
-def recognize_face(face_img):
-    global database
-
-    face_tensor = preprocess_face(face_img)
-    face_embedding = extract_embedding(face_tensor)
-
-    min_distance = float("inf")
-    identity = "unknown"
-
-    for person_name, db_embedding in database:
-        distance = calculate_distance(face_embedding, db_embedding)
-        if distance < min_distance:
-            min_distance = distance
-            identity = person_name
-
-    if min_distance > RECOGNITION_THRESHOLD:
-        identity = "unknown"
-
-    return identity, float(min_distance)
+def image_to_jpeg_bytes(img):
+    success, buffer = cv2.imencode(".jpg", img)
+    if not success:
+        raise ValueError("Could not encode image")
+    return buffer.tobytes()
 
 
-# =========================
-# ROUTES
-# =========================
-@app.route("/health", methods=["GET"])
-@app.route("/face/health", methods=["GET"])
-def health():
-    return jsonify({
-        "status": "ok",
-        "db_folder": DB_FOLDER,
-        "database_size": len(database)
-    })
+def upload_bytes_to_s3(file_bytes: bytes, key: str, content_type="image/jpeg"):
+    if not s3_client:
+        raise RuntimeError("S3 is not configured. Missing FACE_S3_BUCKET.")
+
+    s3_client.upload_fileobj(
+        io.BytesIO(file_bytes),
+        S3_BUCKET,
+        key,
+        ExtraArgs={
+            "ContentType": content_type,
+            "ServerSideEncryption": "AES256"
+        }
+    )
+    return key
 
 
-@app.route("/reload_db", methods=["POST"])
-@app.route("/face/reload_db", methods=["POST"])
-def reload_db():
-    global database
-    database = load_or_create_database()
-    return jsonify({
-        "success": True,
-        "database_size": len(database)
-    })
-
-
-@app.route("/verify_face", methods=["POST", "OPTIONS"])
-@app.route("/face/verify_face", methods=["POST", "OPTIONS"])
-def verify_face():
-    if request.method == "OPTIONS":
-        return ("", 204)
-
-    data = request.get_json(silent=True)
-    if not data or "image" not in data:
-        return jsonify({"success": False, "message": "No image received"}), 400
+def download_representations():
+    """
+    Download saved embeddings from S3.
+    If file does not exist, return empty list.
+    """
+    if not s3_client:
+        return []
 
     try:
-        frame = decode_base64_image(data["image"])
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Invalid image: {str(e)}"}), 400
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=REPRESENTATIONS_KEY)
+        return pickle.loads(obj["Body"].read())
+    except s3_client.exceptions.NoSuchKey:
+        return []
+    except Exception:
+        return []
 
-    bboxes = detect_faces(frame)
-    if not bboxes:
-        return jsonify({"success": False, "message": "No face detected"})
 
-    # أكبر وجه
-    bboxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
-    x1, y1, x2, y2 = bboxes[0]
+def upload_representations(representations):
+    if not s3_client:
+        return
 
-    x1 = max(0, x1)
-    y1 = max(0, y1)
-    x2 = min(frame.shape[1], x2)
-    y2 = min(frame.shape[0], y2)
+    data = pickle.dumps(representations)
+    s3_client.upload_fileobj(
+        io.BytesIO(data),
+        S3_BUCKET,
+        REPRESENTATIONS_KEY,
+        ExtraArgs={
+            "ContentType": "application/octet-stream",
+            "ServerSideEncryption": "AES256"
+        }
+    )
 
-    face_img = frame[y1:y2, x1:x2]
-    if face_img.size == 0:
-        return jsonify({"success": False, "message": "Invalid face crop"})
 
-    identity, distance = recognize_face(face_img)
-    print(f"Matched identity: {identity}, distance: {distance}")
+def get_embedding_from_image(img):
+    """
+    DeepFace expects RGB image or image path.
+    cv2 reads BGR, so convert to RGB.
+    """
+    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+    embeddings = DeepFace.represent(
+        img_path=rgb_img,
+        model_name=MODEL_NAME,
+        detector_backend=DETECTOR_BACKEND,
+        enforce_detection=True
+    )
+
+    if not embeddings:
+        raise ValueError("No face detected")
+
+    return embeddings[0]["embedding"]
+
+
+def cosine_distance(a, b):
+    a = np.array(a)
+    b = np.array(b)
+
+    if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+        return 1.0
+
+    return 1 - np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+@app.route("/face/health", methods=["GET"])
+def health():
+    reps = download_representations()
     return jsonify({
-    "success": True,
-    "matched": identity != "unknown",
-    "identity": identity,
-    "distance": float(distance)
-})
+        "status": "ok",
+        "s3_enabled": bool(s3_client),
+        "s3_bucket": S3_BUCKET,
+        "representations_key": REPRESENTATIONS_KEY,
+        "database_size": len(reps),
+        "model": MODEL_NAME,
+        "detector": DETECTOR_BACKEND
+    })
 
-@app.route("/register_face", methods=["POST", "OPTIONS"])
-@app.route("/face/register_face", methods=["POST", "OPTIONS"])
+
+@app.route("/face/register_face", methods=["POST"])
 def register_face():
-    global database
+    """
+    Expected JSON:
+    {
+      "username": "patient_username",
+      "patient_id": 123,
+      "images": [
+        "data:image/jpeg;base64,...",
+        ...
+      ]
+    }
+    """
+    data = request.get_json(silent=True) or {}
 
-    if request.method == "OPTIONS":
-        return ("", 204)
-
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"success": False, "message": "No JSON received"}), 400
-
-    username = data.get("username")
+    username = safe_username(data.get("username", ""))
+    patient_id = data.get("patient_id")
     images = data.get("images", [])
 
-    if not username or not images:
-        return jsonify({"success": False, "message": "Username or images missing"}), 400
+    if not username:
+        return jsonify({"success": False, "error": "username is required"}), 400
 
-    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
-    person_dir = os.path.join(DB_FOLDER, safe_username)
-    os.makedirs(person_dir, exist_ok=True)
+    if not isinstance(images, list) or len(images) < 1:
+        return jsonify({"success": False, "error": "images list is required"}), 400
 
-    saved = 0
+    if not s3_client:
+        return jsonify({
+            "success": False,
+            "error": "S3 is not configured. Add FACE_S3_BUCKET environment variable."
+        }), 500
 
-    for i, item in enumerate(images):
-        img_data = item.get("image") if isinstance(item, dict) else item
+    representations = download_representations()
 
+    saved_keys = []
+    saved_embeddings = []
+
+    for index, image_data in enumerate(images, start=1):
         try:
-            frame = decode_base64_image(img_data)
+            img = decode_base64_image(image_data)
 
-            bboxes = detect_faces(frame)
+            # Create embedding first. If no face exists, skip this image.
+            embedding = get_embedding_from_image(img)
 
-            if not bboxes:
-                print("No face detected → saving full image", i)
-                face_img = frame
-            else:
-                bboxes.sort(key=lambda b: (b[2] - b[0]) * (b[3] - b[1]), reverse=True)
-                x1, y1, x2, y2 = bboxes[0]
+            jpg_bytes = image_to_jpeg_bytes(img)
 
-                x1 = max(0, x1)
-                y1 = max(0, y1)
-                x2 = min(frame.shape[1], x2)
-                y2 = min(frame.shape[0], y2)
+            timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+            image_key = f"{S3_PREFIX}/{username}/image_{index}_{timestamp}.jpg"
 
-                face_img = frame[y1:y2, x1:x2]
+            upload_bytes_to_s3(jpg_bytes, image_key)
 
-            file_path = os.path.join(person_dir, f"{safe_username}_{i+1}.jpg")
-            cv2.imwrite(file_path, face_img)
+            record = {
+                "identity": username,
+                "patient_id": patient_id,
+                "image_key": image_key,
+                "embedding": embedding,
+                "created_at": timestamp
+            }
 
-            saved += 1
+            representations.append(record)
+            saved_keys.append(image_key)
+            saved_embeddings.append(record)
 
         except Exception as e:
-            print("Error saving face image:", e)
+            # Continue with other images, but report failed image
+            print(f"Failed image {index} for {username}: {str(e)}")
 
-    if os.path.exists(REPRESENTATIONS_FILE):
-        os.remove(REPRESENTATIONS_FILE)
+    if len(saved_keys) == 0:
+        return jsonify({
+            "success": False,
+            "error": "No valid face images were saved. Make sure the face is clear."
+        }), 400
 
-    database = load_or_create_database()
-
-    return jsonify({
-        "success": True,
-        "saved": saved,
-        "username": safe_username,
-        "database_size": len(database)
-    })
-from flask import send_from_directory
-
-@app.route("/face/list_faces/<username>", methods=["GET"])
-def list_faces(username):
-    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
-    person_dir = os.path.join(DB_FOLDER, safe_username)
-
-    if not os.path.exists(person_dir):
-        return jsonify({"success": False, "message": "Folder not found", "path": person_dir}), 404
-
-    files = [
-        f for f in os.listdir(person_dir)
-        if f.lower().endswith((".jpg", ".jpeg", ".png"))
-    ]
+    upload_representations(representations)
 
     return jsonify({
         "success": True,
-        "username": safe_username,
-        "path": person_dir,
-        "files": files,
-        "count": len(files)
+        "username": username,
+        "patient_id": patient_id,
+        "saved": len(saved_keys),
+        "image_keys": saved_keys,
+        "first_image_key": saved_keys[0],
+        "representations_key": REPRESENTATIONS_KEY
     })
 
 
-@app.route("/face/view_face/<username>/<filename>", methods=["GET"])
-def view_face(username, filename):
-    safe_username = "".join(c for c in username if c.isalnum() or c in ("_", "-"))
-    person_dir = os.path.join(DB_FOLDER, safe_username)
-    return send_from_directory(person_dir, filename)
+@app.route("/face/verify_face", methods=["POST"])
+def verify_face():
+    """
+    Expected JSON:
+    {
+      "image": "data:image/jpeg;base64,..."
+    }
+
+    Optional:
+    {
+      "username": "specific_user"
+    }
+    """
+    data = request.get_json(silent=True) or {}
+
+    image_data = data.get("image")
+    username_filter = data.get("username")
+
+    if not image_data:
+        return jsonify({"success": False, "error": "image is required"}), 400
+
+    try:
+        img = decode_base64_image(image_data)
+        query_embedding = get_embedding_from_image(img)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    representations = download_representations()
+
+    if username_filter:
+        username_filter = safe_username(username_filter)
+        representations = [
+            r for r in representations
+            if r.get("identity") == username_filter
+        ]
+
+    if not representations:
+        return jsonify({
+            "success": False,
+            "verified": False,
+            "error": "No registered faces found"
+        }), 404
+
+    best_match = None
+    best_distance = 999
+
+    for record in representations:
+        distance = cosine_distance(query_embedding, record.get("embedding", []))
+
+        if distance < best_distance:
+            best_distance = distance
+            best_match = record
+
+    verified = best_distance <= THRESHOLD
+
+    return jsonify({
+        "success": True,
+        "verified": verified,
+        "identity": best_match.get("identity") if best_match else None,
+        "patient_id": best_match.get("patient_id") if best_match else None,
+        "distance": float(best_distance),
+        "threshold": THRESHOLD,
+        "image_key": best_match.get("image_key") if best_match else None
+    })
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    port = int(os.getenv("PORT", "5001"))
+    app.run(host="0.0.0.0", port=port)
