@@ -294,70 +294,80 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         }
     }
 
-    $face_saved_ok = false;
-    $face_relative_path = '';
-    $face_samples_count = 0;
-    $saved_face_paths = [];
+$face_saved_ok = false;
+$face_relative_path = '';
+$face_samples_count = 0;
+$saved_face_paths = [];
 
-    $decodedFaceImages = json_decode($face_images_json, true);
-    if (!is_array($decodedFaceImages)) {
-        $decodedFaceImages = [];
+$decodedFaceImages = json_decode($face_images_json, true);
+
+if (!is_array($decodedFaceImages)) {
+    $decodedFaceImages = [];
+}
+
+/*
+The browser may send face images in one of these formats:
+
+1) [
+     "data:image/jpeg;base64,...",
+     "data:image/jpeg;base64,..."
+   ]
+
+2) [
+     {"angle":"front", "image":"data:image/jpeg;base64,..."},
+     {"angle":"left", "image":"data:image/jpeg;base64,..."}
+   ]
+
+This code supports both.
+*/
+$faceImagesForApi = [];
+
+foreach ($decodedFaceImages as $imgItem) {
+    if (is_array($imgItem) && !empty($imgItem['image'])) {
+        $faceImagesForApi[] = $imgItem['image'];
+    } elseif (is_string($imgItem) && !empty($imgItem)) {
+        $faceImagesForApi[] = $imgItem;
     }
+}
 
-    if (!empty($decodedFaceImages) && !empty($username)) {
-        $faceDbRoot = "C:/xampp/htdocs/hospital/FFace_Recognition_System _Depi_stud/build_database/db_folder";
-        $safeUsername = preg_replace('/[^A-Za-z0-9_\-]/', '_', $username);
-        $personDir = $faceDbRoot . "/" . $safeUsername;
+if (!empty($faceImagesForApi) && !empty($username)) {
+    $faceApiUrl = getenv('FACE_API_URL') ?: 'http://face-api:5001/face/register_face';
 
-        if (!is_dir($personDir)) {
-            mkdir($personDir, 0755, true);
-        }
+    $payload = json_encode([
+        'username' => $username,
+        'patient_id' => null,
+        'images' => $faceImagesForApi
+    ]);
 
-        $counter = 1;
-        foreach ($decodedFaceImages as $imgItem) {
-            $angleName = 'face';
-            $imgData = '';
+    $ch = curl_init($faceApiUrl);
 
-            if (is_array($imgItem)) {
-                $angleName = preg_replace('/[^A-Za-z0-9_\-]/', '_', strtolower($imgItem['angle'] ?? 'face'));
-                $imgData = $imgItem['image'] ?? '';
-            } else {
-                $imgData = $imgItem;
-            }
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 90);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
 
-            if (!preg_match('/^data:image\/(\w+);base64,/', $imgData, $type)) {
-                continue;
-            }
+    $response = curl_exec($ch);
+    $curlError = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-            $imageDataClean = substr($imgData, strpos($imgData, ',') + 1);
-            $imageDataClean = str_replace(' ', '+', $imageDataClean);
-            $imageBinary = base64_decode($imageDataClean);
+    curl_close($ch);
 
-            if ($imageBinary === false) {
-                continue;
-            }
+    $faceResult = json_decode($response, true);
 
-            $imageExt = strtolower($type[1]);
-            if (!in_array($imageExt, ['jpg', 'jpeg', 'png'])) {
-                $imageExt = 'jpg';
-            }
+    if (!$curlError && $httpCode >= 200 && $httpCode < 300 && !empty($faceResult['success'])) {
+        $face_samples_count = intval($faceResult['saved'] ?? 0);
+        $saved_face_paths = $faceResult['image_keys'] ?? [];
 
-            $faceFileName = sprintf("%s_%s_%03d_%d.%s", $safeUsername, $angleName, $counter, time(), $imageExt);
-            $faceFullPath = $personDir . "/" . $faceFileName;
-
-            if (file_put_contents($faceFullPath, $imageBinary) !== false) {
-                $saved_face_paths[] = "build_database/db_folder/" . $safeUsername . "/" . $faceFileName;
-                $counter++;
-            }
-        }
-
-        $face_samples_count = count($saved_face_paths);
         if ($face_samples_count >= 6) {
             $face_saved_ok = true;
-            $face_relative_path = $saved_face_paths[0];
+            $face_relative_path = $faceResult['first_image_key'] ?? '';
         }
     }
-
+}
     if(!$first_name){ $fieldErrors['first_name'] = $t['error_fill']; }
     if(!$last_name){ $fieldErrors['last_name'] = $t['error_fill']; }
     if(!$username){ $fieldErrors['username'] = $t['error_fill']; }

@@ -10,3 +10,14 @@ scikit-learn==1.5.2
 pandas==2.2.2
 matplotlib==3.8.4
 tqdm==4.66.4
+boto3==1.28.57
+flask-cors
+deepface
+tensorflow
+tf-keras
+mtcnn
+retina-face
+scipy
+gdown
+requests
+gunicorn
