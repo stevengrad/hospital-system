@@ -155,7 +155,9 @@ def health():
         "model": MODEL_NAME,
         "detector": DETECTOR_BACKEND
     })
-
+@app.route("/health", methods=["GET"])
+def root_health():
+    return health()
 
 @app.route("/face/register_face", methods=["POST"])
 def register_face():
