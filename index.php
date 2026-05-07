@@ -565,20 +565,30 @@ function validateNID() {
 }
 
 // --------- Face Recognition Login ----------
+// --------- Face Recognition Login ----------
 const faceBtn = document.getElementById('face-login-btn');
 const facePanel = document.getElementById('face-panel');
 const video = document.getElementById('video');
 const canvas = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
 const statusEl = document.getElementById('face-status');
 const bannerEl = document.getElementById('verified-banner');
 const faceVerifiedField = document.getElementById('face_verified');
 const faceIdentityField = document.getElementById('face_identity');
 
+let ctx = null;
+if (canvas) {
+    const canvas = document.getElementById('overlay');
+     ctx = canvas ? canvas.getContext('2d') : null;
+}
+
 let streamRef = null;
 
 async function startCamera() {
     try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Camera API is not available. Use HTTPS.");
+        }
+
         streamRef = await navigator.mediaDevices.getUserMedia({
             video: { width: 640, height: 480, facingMode: "user" },
             audio: false
@@ -597,7 +607,7 @@ async function startCamera() {
             : "Camera ready. Click Verify & Login.";
 
     } catch (err) {
-        console.error(err);
+        console.error("Camera error:", err);
         statusEl.textContent = (lang === 'ar')
             ? "تعذر فتح الكاميرا."
             : "Could not open camera.";
@@ -611,89 +621,105 @@ function stopCamera() {
     }
 }
 
-faceBtn.addEventListener('click', async () => {
-    bannerEl.style.display = 'none';
+if (faceBtn) {
+    faceBtn.addEventListener('click', async () => {
+        if (bannerEl) bannerEl.style.display = 'none';
 
-    if (facePanel.style.display === 'none' || facePanel.style.display === '') {
-        facePanel.style.display = 'block';
-        await startCamera();
-    } else {
-        facePanel.style.display = 'none';
-        stopCamera();
-    }
-});
+        if (facePanel.style.display === 'none' || facePanel.style.display === '') {
+            facePanel.style.display = 'block';
+            await startCamera();
+        } else {
+            facePanel.style.display = 'none';
+            stopCamera();
+        }
+    });
+}
 
-document.getElementById('capture-face').addEventListener('click', async () => {
-    if (!video.videoWidth) {
-        statusEl.textContent = (lang === 'ar')
-            ? "الكاميرا ليست جاهزة بعد."
-            : "Camera not ready yet.";
-        return;
-    }
+const captureFaceBtn = document.getElementById('capture-face');
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = canvas.toDataURL("image/jpeg", 0.9);
-
-    statusEl.textContent = (lang === 'ar')
-        ? "جاري التحقق من الوجه..."
-        : "Verifying face...";
-
-    try {
-        const response = await fetch("https://cairohospitals.click/face/verify_face", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                image: imageData
-            })
-        });
-
-        const data = await response.json();
-
-        if (!data.success) {
-            faceVerifiedField.value = "0";
-            faceIdentityField.value = "";
-            bannerEl.style.display = "none";
-            statusEl.textContent = data.message || ((lang === 'ar') ? "فشل التحقق." : "Verification failed.");
+if (captureFaceBtn) {
+    captureFaceBtn.addEventListener('click', async () => {
+        if (!video || !video.videoWidth || !ctx) {
+            statusEl.textContent = (lang === 'ar')
+                ? "الكاميرا ليست جاهزة بعد."
+                : "Camera not ready yet.";
             return;
         }
 
-        if (data.matched && data.identity && data.identity !== "unknown") {
-            faceVerifiedField.value = "1";
-            faceIdentityField.value = data.identity;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL("image/jpeg", 0.9);
 
-            bannerEl.style.display = "block";
-            statusEl.textContent = (lang === 'ar')
-                ? `تم التعرف على: ${data.identity}`
-                : `Recognized as: ${data.identity}`;
+        statusEl.textContent = (lang === 'ar')
+            ? "جاري التحقق من الوجه..."
+            : "Verifying face...";
 
-            stopCamera();
+        try {
+    const response = await fetch("https://cairohospitals.click/face/verify_face", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            image: imageData
+        })
+    });
 
-            setTimeout(() => {
-                document.getElementById('face-login-form').submit();
-            }, 700);
+    const text = await response.text();
+    let data;
 
-        } else {
-            faceVerifiedField.value = "0";
-            faceIdentityField.value = "";
-            bannerEl.style.display = "none";
-            statusEl.textContent = (lang === 'ar')
-                ? "الوجه غير مسجل في قاعدة البيانات."
-                : "Face not found in database.";
-        }
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error("Face API returned non-JSON:", text);
+        throw new Error("Face API returned invalid response");
+    }
 
-    } catch (err) {
-        console.error(err);
+    console.log("Face verify response:", data);
+
+    if (!response.ok || !data.success) {
         faceVerifiedField.value = "0";
         faceIdentityField.value = "";
         bannerEl.style.display = "none";
-        statusEl.textContent = (lang === 'ar')
-            ? "تعذر الاتصال بخدمة التعرف على الوجه."
-            : "Could not connect to face recognition service.";
+        statusEl.textContent = data.error || data.message || ((lang === 'ar') ? "فشل التحقق." : "Verification failed.");
+        return;
     }
-});
 
+    if (data.verified && data.identity && data.identity !== "unknown") {
+        faceVerifiedField.value = "1";
+        faceIdentityField.value = data.identity;
+
+        bannerEl.style.display = "block";
+        statusEl.textContent = (lang === 'ar')
+            ? `تم التعرف على: ${data.identity}`
+            : `Recognized as: ${data.identity}`;
+
+        stopCamera();
+
+        setTimeout(() => {
+            document.getElementById('face-login-form').submit();
+        }, 700);
+
+    } else {
+        faceVerifiedField.value = "0";
+        faceIdentityField.value = "";
+        bannerEl.style.display = "none";
+
+        statusEl.textContent = (lang === 'ar')
+            ? `الوجه غير مطابق. Distance: ${data.distance}, threshold: ${data.threshold}`
+            : `Face not matched. Distance: ${data.distance}, threshold: ${data.threshold}`;
+    }
+
+} catch (err) {
+    console.error("Face verification connection/error:", err);
+    faceVerifiedField.value = "0";
+    faceIdentityField.value = "";
+    bannerEl.style.display = "none";
+    statusEl.textContent = (lang === 'ar')
+        ? "تعذر الاتصال بخدمة التعرف على الوجه."
+        : "Could not connect to face recognition service.";
+}
+    });
+}
 const usernameInput = document.querySelector("input[name='username']");
 const nidGroup = document.getElementById("nid-group");
 
