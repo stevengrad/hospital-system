@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "Changes": [
     {
       "Action": "UPSERT",
@@ -26,44 +25,4 @@
       }
     }
   ]
-=======
-    "Changes":  [
-                    {
-                        "ResourceRecordSet":  {
-                                                  "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-1804905983.eu-central-1.elb.amazonaws.com",
-                                                                      "EvaluateTargetHealth":  false,
-                                                                      "HostedZoneId":  "Z215JYRZR1TBD5"
-                                                                  },
-                                                  "Name":  "cairohospitals.click.",
-                                                  "Type":  "A"
-                                              },
-                        "Action":  "UPSERT"
-                    },
-                    {
-                        "ResourceRecordSet":  {
-                                                  "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-1804905983.eu-central-1.elb.amazonaws.com",
-                                                                      "EvaluateTargetHealth":  false,
-                                                                      "HostedZoneId":  "Z215JYRZR1TBD5"
-                                                                  },
-                                                  "Name":  "www.cairohospitals.click.",
-                                                  "Type":  "A"
-                                              },
-                        "Action":  "UPSERT"
-                    },
-                    {
-                        "ResourceRecordSet":  {
-                                                  "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-1804905983.eu-central-1.elb.amazonaws.com",
-                                                                      "EvaluateTargetHealth":  false,
-                                                                      "HostedZoneId":  "Z215JYRZR1TBD5"
-                                                                  },
-                                                  "Name":  "*.cairohospitals.click.",
-                                                  "Type":  "A"
-                                              },
-                        "Action":  "UPSERT"
-                    }
-                ]
->>>>>>> bb1dccd85bfef72eafe3dfbe753408e4dc4811ad
 }
