@@ -906,6 +906,12 @@ padding-top: 80px;
     color:#cbd5e1;
     line-height:1.6;
 }
+.field-error{
+    color:#dc2626;
+    font-size:13px;
+    margin-top:6px;
+    font-weight:600;
+}
 </style>
 </head>
 <body>
@@ -1049,6 +1055,8 @@ padding-top: 80px;
                         <i class="fa-solid fa-id-card icon"></i>
                         <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" value="<?= old_value('national_id', $old) ?>" required>
                     </div>
+                    <input type="hidden" name="ocr_national_id" id="ocr_national_id">
+<div class="field-error" id="national_id_match_error"></div>
                     <?= field_error('national_id', $fieldErrors) ?>
                     <div class="field-error client-error" id="national_id_error"></div>
                 </div>
@@ -1484,6 +1492,130 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
         if (firstError) {
             firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+    }
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<script>
+const nidFile = document.getElementById("nid_photo");
+const nationalIdInput = document.getElementById("national_id");
+
+nidFile.addEventListener("change", async function () {
+
+    const file = this.files[0];
+    if (!file) return;
+
+    nationalIdInput.value = "Reading ID...";
+
+    try {
+
+        const result = await Tesseract.recognize(
+            file,
+            'eng',
+            {
+                logger: m => console.log(m)
+            }
+        );
+
+        const text = result.data.text;
+
+        console.log(text);
+
+        // البحث عن أي رقم مكون من 14 رقم
+        const match = text.match(/\b\d{14}\b/);
+
+        if (match) {
+
+            document.getElementById("ocr_national_id").value = match[0];
+
+          if (!nationalIdInput.value.trim()) {
+               nationalIdInput.value = match[0];
+}
+
+        } else {
+
+            nationalIdInput.value = "";
+
+            alert("Could not detect National ID automatically.");
+
+        }
+
+    } catch (error) {
+
+        console.error(error);
+
+        nationalIdInput.value = "";
+
+        alert("Error reading ID image.");
+
+    }
+
+});
+</script>
+<script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
+
+<script>
+const nidFile = document.getElementById("nid_photo");
+const nationalIdInput = document.getElementById("national_id");
+const ocrNationalIdInput = document.getElementById("ocr_national_id");
+
+nidFile.addEventListener("change", async function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    nationalIdInput.value = "Reading ID...";
+    ocrNationalIdInput.value = "";
+
+    try {
+        const result = await Tesseract.recognize(
+            file,
+            "ara+eng",
+            { logger: m => console.log(m) }
+        );
+
+        const text = result.data.text;
+        console.log("OCR TEXT:", text);
+
+        const cleanedText = text.replace(/[^\d]/g, "");
+        const match = cleanedText.match(/\d{14}/);
+
+        if (match) {
+            ocrNationalIdInput.value = match[0];
+            nationalIdInput.value = match[0];
+        } else {
+            nationalIdInput.value = "";
+            ocrNationalIdInput.value = "";
+            alert("Could not detect National ID automatically. Please upload a clearer image.");
+        }
+
+    } catch (error) {
+        console.error(error);
+        nationalIdInput.value = "";
+        ocrNationalIdInput.value = "";
+        alert("Error reading National ID image.");
+    }
+});
+</script>
+
+<script>
+document.getElementById("registerForm").addEventListener("submit", function(e) {
+    const typedNid = document.getElementById("national_id").value.trim();
+    const ocrNid = document.getElementById("ocr_national_id").value.trim();
+    const errorBox = document.getElementById("national_id_match_error");
+
+    errorBox.textContent = "";
+
+    if (!ocrNid) {
+        e.preventDefault();
+        errorBox.textContent = "Please upload a clear National ID photo so we can verify it.";
+        return;
+    }
+
+    if (typedNid !== ocrNid) {
+        e.preventDefault();
+        errorBox.textContent = "National ID does not match the ID detected from the uploaded card.";
+        return;
     }
 });
 </script>

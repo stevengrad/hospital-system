@@ -124,7 +124,7 @@ def get_embedding_from_image(img):
         img_path=rgb_img,
         model_name=MODEL_NAME,
         detector_backend=DETECTOR_BACKEND,
-        enforce_detection=True
+        enforce_detection=False
     )
 
     if not embeddings:
@@ -244,6 +244,108 @@ def register_face():
     })
 
 
+
+def delete_s3_prefix(prefix: str):
+    """Delete all S3 objects under a prefix."""
+    if not s3_client:
+        return 0
+
+    deleted_count = 0
+    paginator = s3_client.get_paginator("list_objects_v2")
+
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+        objects = page.get("Contents", [])
+        if not objects:
+            continue
+
+        delete_payload = {
+            "Objects": [{"Key": obj["Key"]} for obj in objects]
+        }
+        s3_client.delete_objects(Bucket=S3_BUCKET, Delete=delete_payload)
+        deleted_count += len(objects)
+
+    return deleted_count
+
+
+@app.route("/face/delete_user", methods=["POST"])
+def delete_face_user():
+    """
+    Expected JSON:
+    {
+      "username": "patient_username",
+      "patient_id": 123   // optional
+    }
+
+    Deletes:
+    1) all S3 face images under faces/<username>/
+    2) this user's records from faces/representations.pkl
+    """
+    data = request.get_json(silent=True) or {}
+    username_raw = str(data.get("username", "")).strip()
+    patient_id = data.get("patient_id")
+
+    if not username_raw and patient_id is None:
+        return jsonify({
+            "success": False,
+            "error": "username or patient_id is required"
+        }), 400
+
+    if not s3_client:
+        return jsonify({
+            "success": False,
+            "error": "S3 is not configured. Add FACE_S3_BUCKET environment variable."
+        }), 500
+
+    username = safe_username(username_raw) if username_raw else ""
+
+    representations = download_representations()
+    before_count = len(representations)
+
+    def belongs_to_user(record):
+        same_username = bool(username) and record.get("identity") == username
+        same_patient_id = patient_id is not None and str(record.get("patient_id")) == str(patient_id)
+        return same_username or same_patient_id
+
+    user_records = [r for r in representations if belongs_to_user(r)]
+
+    image_keys = set()
+    for record in user_records:
+        key = record.get("image_key")
+        if key:
+            image_keys.add(key)
+
+    # Delete exact keys found in representations.pkl
+    deleted_images = 0
+    if image_keys:
+        keys = list(image_keys)
+        for i in range(0, len(keys), 1000):
+            batch = keys[i:i + 1000]
+            s3_client.delete_objects(
+                Bucket=S3_BUCKET,
+                Delete={"Objects": [{"Key": key} for key in batch]}
+            )
+            deleted_images += len(batch)
+
+    # Also delete anything still under faces/<username>/, useful if pkl missed old images
+    deleted_by_prefix = 0
+    if username:
+        deleted_by_prefix = delete_s3_prefix(f"{S3_PREFIX}/{username}/")
+
+    remaining = [r for r in representations if not belongs_to_user(r)]
+    upload_representations(remaining)
+
+    return jsonify({
+        "success": True,
+        "username": username,
+        "patient_id": patient_id,
+        "representations_before": before_count,
+        "representations_after": len(remaining),
+        "representations_removed": before_count - len(remaining),
+        "images_deleted_from_pkl_keys": deleted_images,
+        "images_deleted_by_prefix": deleted_by_prefix,
+        "representations_key": REPRESENTATIONS_KEY
+    })
+
 @app.route("/face/verify_face", methods=["POST"])
 def verify_face():
     """
@@ -297,18 +399,17 @@ def verify_face():
             best_distance = distance
             best_match = record
 
-    verified = best_distance <= THRESHOLD
+    verified = bool(best_distance <= THRESHOLD)
 
     return jsonify({
-        "success": True,
-        "verified": verified,
-        "identity": best_match.get("identity") if best_match else None,
-        "patient_id": best_match.get("patient_id") if best_match else None,
-        "distance": float(best_distance),
-        "threshold": THRESHOLD,
-        "image_key": best_match.get("image_key") if best_match else None
-    })
-
+    "success": True,
+    "verified": verified,
+    "identity": str(best_match.get("identity")) if best_match else None,
+    "patient_id": best_match.get("patient_id") if best_match else None,
+    "distance": float(best_distance),
+    "threshold": float(THRESHOLD),
+    "image_key": str(best_match.get("image_key")) if best_match else None
+})
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5001"))
