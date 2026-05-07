@@ -20,6 +20,7 @@ services:
 
       # Optional only if you still use reload_db somewhere
       FACE_RELOAD_URL: http://face-api:5001/reload_db
+      FACE_DELETE_URL: http://face-api:5001/face/delete_user
 
       # Recommended: move Gmail credentials here instead of hardcoding in PHP
       # SMTP_USER: cairohospitals0@gmail.com
