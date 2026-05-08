@@ -575,11 +575,7 @@ const bannerEl = document.getElementById('verified-banner');
 const faceVerifiedField = document.getElementById('face_verified');
 const faceIdentityField = document.getElementById('face_identity');
 
-let ctx = null;
-if (canvas) {
-    const canvas = document.getElementById('overlay');
-     ctx = canvas ? canvas.getContext('2d') : null;
-}
+const ctx = canvas ? canvas.getContext('2d') : null;
 
 let streamRef = null;
 
