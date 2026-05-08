@@ -9,6 +9,8 @@ require_once __DIR__ . '/PHPMailer/src/SMTP.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
+
+
 /* =========================
    Language handling
 ========================= */
@@ -25,7 +27,7 @@ $texts = [
         'national_id'=>'National ID',
         'password'=>'Password',
         'confirm'=>'Confirm Password',
-        'register'=>'Create Account',
+        'register'=>'Register',
         'back'=>'Back to Login',
         'welcome'=>'Create your hospital account',
         'error_match'=>'Passwords do not match.',
@@ -40,9 +42,10 @@ $texts = [
         'phone'=>'Phone Number',
         'error_email'=>'Invalid email format.',
         'error_nid'=>'National ID must be exactly 14 digits.',
-        'error_fill'=>'Please fill all required fields.',
+        'error_fill'=>'Please fill all fields and provide a National ID photo.',
         'error_birthdate'=>'Invalid birthdate.',
         'nid_photo'=>'National ID Photo',
+        'take_photo'=>'📸',
         'face_scan'=>'Face Scan',
         'open_face_camera'=>'Open Face Camera',
         'start_face_scan'=>'Start Face Scan',
@@ -52,6 +55,8 @@ $texts = [
         'face_done'=>'Face scan completed successfully.',
         'face_camera_error'=>'Could not open face camera.',
         'camera_not_ready'=>'Camera not ready yet.',
+        'camera_capture'=>'Capture',
+        'camera_not_available'=>'Camera not available',
         'username_exists'=>'Username already exists.',
         'nid_exists'=>'National ID already exists.',
         'db_error'=>'Database error.',
@@ -72,9 +77,8 @@ $texts = [
         'face_scan_ready'=>'Camera ready. Start the guided scan.',
         'face_samples_target'=>'Two photos will be captured for each angle.',
         'smtp_not_ready'=>'Account created, but email service is not configured correctly.',
-        'first_name'=>'First Name',
-        'last_name'=>'Last Name',
     ],
+
     'ar'=>[
         'heading'=>'تسجيل مريض',
         'title'=>'تسجيل حساب جديد',
@@ -82,7 +86,7 @@ $texts = [
         'national_id'=>'الرقم القومي',
         'password'=>'كلمة المرور',
         'confirm'=>'تأكيد كلمة المرور',
-        'register'=>'إنشاء الحساب',
+        'register'=>'تسجيل',
         'back'=>'العودة لتسجيل الدخول',
         'welcome'=>'إنشاء حساب جديد في المستشفى',
         'error_match'=>'كلمتا المرور غير متطابقتين.',
@@ -97,9 +101,10 @@ $texts = [
         'phone'=>'رقم الهاتف',
         'error_email'=>'صيغة البريد الإلكتروني غير صحيحة.',
         'error_nid'=>'يجب أن يكون الرقم القومي 14 رقمًا.',
-        'error_fill'=>'يرجى ملء جميع الحقول المطلوبة.',
+        'error_fill'=>'يرجى ملء جميع الحقول وإضافة صورة البطاقة.',
         'error_birthdate'=>'تاريخ الميلاد غير صحيح.',
         'nid_photo'=>'صورة البطاقة',
+        'take_photo'=>'📸',
         'face_scan'=>'مسح الوجه',
         'open_face_camera'=>'فتح كاميرا الوجه',
         'start_face_scan'=>'ابدأ مسح الوجه',
@@ -109,6 +114,8 @@ $texts = [
         'face_done'=>'تم الانتهاء من مسح الوجه بنجاح.',
         'face_camera_error'=>'تعذر فتح كاميرا الوجه.',
         'camera_not_ready'=>'الكاميرا ليست جاهزة بعد.',
+        'camera_capture'=>'التقاط',
+        'camera_not_available'=>'الكاميرا غير متاحة',
         'username_exists'=>'اسم المستخدم موجود بالفعل.',
         'nid_exists'=>'الرقم القومي موجود بالفعل.',
         'db_error'=>'خطأ في قاعدة البيانات.',
@@ -129,16 +136,12 @@ $texts = [
         'face_scan_ready'=>'الكاميرا جاهزة. ابدأ المسح الموجّه.',
         'face_samples_target'=>'سيتم التقاط صورتين لكل زاوية.',
         'smtp_not_ready'=>'تم إنشاء الحساب ولكن خدمة البريد غير مضبوطة بشكل صحيح.',
-        'first_name'=>'الاسم الأول',
-        'last_name'=>'اسم العائلة',
     ]
 ];
 
 $t = $texts[$lang];
 $error = '';
 $success_notice = '';
-$fieldErrors = [];
-$old = [];
 $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
 
 function lang_link_register($code) {
@@ -146,27 +149,16 @@ function lang_link_register($code) {
     return $self . '?lang=' . $code;
 }
 
-function old_value($key, $old) {
-    return htmlspecialchars($old[$key] ?? '', ENT_QUOTES, 'UTF-8');
-}
-
-function field_error($key, $fieldErrors) {
-    if (!empty($fieldErrors[$key])) {
-        return '<div class="field-error">' . htmlspecialchars($fieldErrors[$key], ENT_QUOTES, 'UTF-8') . '</div>';
-    }
-    return '';
-}
-
 /* =========================
    SMTP Mail helper
-   Put your Gmail App Password below
+   CHANGE THESE VALUES
 ========================= */
 function sendWelcomeCredentialsEmailSMTP($toEmail, $username, $plainPassword, $lang, $texts) {
-    $smtpUser = 'cairohospitals0@gmail.com';
-    $smtpPass = 'dnpoxjybarrdwhxd';
+   $smtpUser = 'cairohospitals0@gmail.com';
+$smtpPass = 'nyqt rjbf pyoo qsfx';
     $fromName = 'Cairo Hospitals';
 
-    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {
+    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpUser === 'YOUR_GMAIL@gmail.com') {
         return ['ok' => false, 'reason' => 'smtp_not_configured'];
     }
 
@@ -180,23 +172,22 @@ function sendWelcomeCredentialsEmailSMTP($toEmail, $username, $plainPassword, $l
         $labelUser = $texts[$lang]['email_user'];
         $labelPass = $texts[$lang]['email_pass'];
         $note      = $texts[$lang]['email_note'];
-$mail->isSMTP();
 
-$mail->SMTPOptions = [
+        $mail->isSMTP();
+        $mail->SMTPOptions = [
     'ssl' => [
         'verify_peer' => false,
         'verify_peer_name' => false,
         'allow_self_signed' => true,
     ],
 ];
-
-$mail->Host       = 'smtp.gmail.com';
-$mail->SMTPAuth   = true;
-$mail->Username   = $smtpUser;
-$mail->Password   = $smtpPass;
-$mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-$mail->Port       = 587;
-$mail->CharSet    = 'UTF-8';
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $smtpUser;
+        $mail->Password   = $smtpPass;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->CharSet    = 'UTF-8';
 
         $mail->setFrom($smtpUser, $fromName);
         $mail->addAddress($toEmail);
@@ -228,21 +219,18 @@ $mail->CharSet    = 'UTF-8';
 
         $mail->send();
         return ['ok' => true, 'reason' => 'sent'];
-    } catch (Exception $e) {
-        return ['ok' => false, 'reason' => $mail->ErrorInfo];
-    }
+    }catch (Exception $e) {
+    return ['ok' => false, 'reason' => $mail->ErrorInfo];
+}
 }
 
-/* =========================
-   Backend registration
-========================= */
 if($_SERVER['REQUEST_METHOD']==='POST'){
-    $first_name       = trim($_POST['first_name'] ?? '');
-    $last_name        = trim($_POST['last_name'] ?? '');
-    $username         = trim($_POST['username'] ?? '');
-    $national_id      = trim($_POST['national_id'] ?? '');
-    $password         = trim($_POST['password'] ?? '');
-    $confirm          = trim($_POST['confirm_password'] ?? '');
+   $first_name       = trim($_POST['first_name'] ?? '');
+$last_name        = trim($_POST['last_name'] ?? '');
+$username         = trim($_POST['username'] ?? '');
+$national_id      = trim($_POST['national_id'] ?? '');
+$password         = trim($_POST['password'] ?? '');
+$confirm          = trim($_POST['confirm_password'] ?? '');
     $gender           = $_POST['gender'] ?? '';
     $governorate      = $_POST['governorate'] ?? '';
     $birthdate        = $_POST['birthdate'] ?? '';
@@ -251,20 +239,9 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $contact_number   = trim($_POST['contact_number'] ?? '');
     $face_images_json = $_POST['face_images_json'] ?? '[]';
 
-    $old = [
-        'first_name'=>$first_name,
-        'last_name'=>$last_name,
-        'username'=>$username,
-        'national_id'=>$national_id,
-        'gender'=>$gender,
-        'governorate'=>$governorate,
-        'birthdate'=>$birthdate,
-        'address'=>$address,
-        'email'=>$email,
-        'contact_number'=>$contact_number,
-    ];
-
     $plainPasswordForEmail = $password;
+
+   
 
     $validPassword = preg_match('/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/', $password);
     $validEmail    = filter_var($email, FILTER_VALIDATE_EMAIL);
@@ -294,108 +271,95 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         }
     }
 
-$face_saved_ok = false;
-$face_relative_path = '';
-$face_samples_count = 0;
-$saved_face_paths = [];
+    $face_saved_ok = false;
+    $face_relative_path = '';
+    $face_samples_count = 0;
+    $saved_face_paths = [];
 
-$decodedFaceImages = json_decode($face_images_json, true);
-
-if (!is_array($decodedFaceImages)) {
-    $decodedFaceImages = [];
-}
-
-/*
-The browser may send face images in one of these formats:
-
-1) [
-     "data:image/jpeg;base64,...",
-     "data:image/jpeg;base64,..."
-   ]
-
-2) [
-     {"angle":"front", "image":"data:image/jpeg;base64,..."},
-     {"angle":"left", "image":"data:image/jpeg;base64,..."}
-   ]
-
-This code supports both.
-*/
-$faceImagesForApi = [];
-
-foreach ($decodedFaceImages as $imgItem) {
-    if (is_array($imgItem) && !empty($imgItem['image'])) {
-        $faceImagesForApi[] = $imgItem['image'];
-    } elseif (is_string($imgItem) && !empty($imgItem)) {
-        $faceImagesForApi[] = $imgItem;
+    $decodedFaceImages = json_decode($face_images_json, true);
+    if (!is_array($decodedFaceImages)) {
+        $decodedFaceImages = [];
     }
-}
 
-if (!empty($faceImagesForApi) && !empty($username)) {
-    $faceApiUrl = getenv('FACE_API_URL') ?: 'http://face-api:5001/face/register_face';
+    if (!empty($decodedFaceImages) && !empty($username)) {
+        $faceDbRoot = "C:/xampp/htdocs/hospital/FFace_Recognition_System _Depi_stud/build_database/db_folder";
+        $safeUsername = preg_replace('/[^A-Za-z0-9_\-]/', '_', $username);
+        $personDir = $faceDbRoot . "/" . $safeUsername;
 
-    $payload = json_encode([
-        'username' => $username,
-        'patient_id' => null,
-        'images' => $faceImagesForApi
-    ]);
+        if (!is_dir($personDir)) {
+            mkdir($personDir, 0755, true);
+        }
 
-    $ch = curl_init($faceApiUrl);
+        $counter = 1;
+        foreach ($decodedFaceImages as $imgItem) {
+            $angleName = 'face';
+            $imgData = '';
 
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 90);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+            if (is_array($imgItem)) {
+                $angleName = preg_replace('/[^A-Za-z0-9_\-]/', '_', strtolower($imgItem['angle'] ?? 'face'));
+                $imgData = $imgItem['image'] ?? '';
+            } else {
+                $imgData = $imgItem;
+            }
 
-    $response = curl_exec($ch);
-    $curlError = curl_error($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            if (!preg_match('/^data:image\/(\w+);base64,/', $imgData, $type)) {
+                continue;
+            }
 
-    curl_close($ch);
+            $imageDataClean = substr($imgData, strpos($imgData, ',') + 1);
+            $imageDataClean = str_replace(' ', '+', $imageDataClean);
+            $imageBinary = base64_decode($imageDataClean);
 
-    $faceResult = json_decode($response, true);
+            if ($imageBinary === false) {
+                continue;
+            }
 
-    if (!$curlError && $httpCode >= 200 && $httpCode < 300 && !empty($faceResult['success'])) {
-        $face_samples_count = intval($faceResult['saved'] ?? 0);
-        $saved_face_paths = $faceResult['image_keys'] ?? [];
+            $imageExt = strtolower($type[1]);
+            if (!in_array($imageExt, ['jpg', 'jpeg', 'png'])) {
+                $imageExt = 'jpg';
+            }
 
+            $faceFileName = sprintf("%s_%s_%03d_%d.%s", $safeUsername, $angleName, $counter, time(), $imageExt);
+            $faceFullPath = $personDir . "/" . $faceFileName;
+
+            if (file_put_contents($faceFullPath, $imageBinary) !== false) {
+                $saved_face_paths[] = "build_database/db_folder/" . $safeUsername . "/" . $faceFileName;
+                $counter++;
+            }
+        }
+
+        $face_samples_count = count($saved_face_paths);
         if ($face_samples_count >= 6) {
             $face_saved_ok = true;
-            $face_relative_path = $faceResult['first_image_key'] ?? '';
+            $face_relative_path = $saved_face_paths[0];
         }
     }
-}
-    if(!$first_name){ $fieldErrors['first_name'] = $t['error_fill']; }
-    if(!$last_name){ $fieldErrors['last_name'] = $t['error_fill']; }
-    if(!$username){ $fieldErrors['username'] = $t['error_fill']; }
-    if(!$national_id){ $fieldErrors['national_id'] = $t['error_fill']; }
-    elseif(!$validNID){ $fieldErrors['national_id'] = $t['error_nid']; }
-    if(!$password){ $fieldErrors['password'] = $t['error_fill']; }
-    elseif(!$validPassword){ $fieldErrors['password'] = $t['error_invalid']; }
-    if(!$confirm){ $fieldErrors['confirm_password'] = $t['error_fill']; }
-    elseif($password !== $confirm){ $fieldErrors['confirm_password'] = $t['error_match']; }
-    if(!$gender){ $fieldErrors['gender'] = $t['error_fill']; }
-    if(!$governorate){ $fieldErrors['governorate'] = $t['error_fill']; }
-    if(!$address){ $fieldErrors['address'] = $t['error_fill']; }
-    if(!$email){ $fieldErrors['email'] = $t['error_fill']; }
-    elseif(!$validEmail){ $fieldErrors['email'] = $t['error_email']; }
-    if(!$birthdate){ $fieldErrors['birthdate'] = $t['error_fill']; }
-    elseif(strtotime($birthdate) > strtotime(date('Y-m-d'))){ $fieldErrors['birthdate'] = $t['error_birthdate']; }
-    if(!$contact_number){ $fieldErrors['contact_number'] = $t['error_fill']; }
-    if(!$nid_photo_path){ $fieldErrors['nid_photo'] = $t['error_fill']; }
-    if(!$face_saved_ok){ $fieldErrors['face_images_json'] = $t['face_required']; }
 
-    if (empty($fieldErrors)) {
+    if(!$username || !$national_id || !$password || !$confirm || !$gender || !$governorate || !$address || !$email || !$birthdate || !$contact_number){
+        $error = $t['error_fill'];
+    }elseif(!$validNID){
+        $error = $t['error_nid'];
+    }elseif(!$validPassword){
+        $error = $t['error_invalid'];
+    }elseif($password !== $confirm){
+        $error = $t['error_match'];
+    }elseif(!$validEmail){
+        $error = $t['error_email'];
+    }elseif(strtotime($birthdate) > strtotime(date('Y-m-d'))){
+        $error = $t['error_birthdate'];
+    }elseif(!$nid_photo_path){
+        $error = $t['error_fill'];
+    }elseif(!$face_saved_ok){
+        $error = $t['face_required'];
+    }else{
+
         $stmtCheckUser = $conn->prepare("SELECT id FROM registration WHERE username = ? LIMIT 1");
         $stmtCheckUser->bind_param("s", $username);
         $stmtCheckUser->execute();
         $stmtCheckUser->store_result();
 
         if($stmtCheckUser->num_rows > 0){
-            $fieldErrors['username'] = $t['username_exists'];
+            $error = $t['username_exists'];
         } else {
             $stmtCheckNID = $conn->prepare("SELECT id FROM registration WHERE national_id = ? LIMIT 1");
             $stmtCheckNID->bind_param("s", $national_id);
@@ -403,7 +367,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
             $stmtCheckNID->store_result();
 
             if($stmtCheckNID->num_rows > 0){
-                $fieldErrors['national_id'] = $t['nid_exists'];
+                $error = $t['nid_exists'];
             } else {
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
 
@@ -435,6 +399,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                     );
 
                     if($stmt_reg->execute()){
+
                         $role = 'patient';
                         $stmt_login = $conn->prepare("
                             INSERT INTO login (username, password, national_id, role, face_image_path, face_samples_count)
@@ -455,6 +420,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                             );
 
                             if($stmt_login->execute()){
+
                                 $bloodType = NULL;
                                 $stmt_patient = $conn->prepare("
                                     INSERT INTO patients
@@ -479,6 +445,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                                     );
 
                                     if($stmt_patient->execute()){
+
                                         $visit_date   = date('Y-m-d H:i:s');
                                         $doctor_name  = "System";
                                         $diagnosis    = "New patient registration";
@@ -503,6 +470,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                                             );
 
                                             if($stmt_history->execute()){
+
                                                 $mailResult = sendWelcomeCredentialsEmailSMTP(
                                                     $email,
                                                     $username,
@@ -512,7 +480,7 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                                                 );
 
                                                 if (!$mailResult['ok']) {
-                                                    $success_notice = 'Mail error: ' . $mailResult['reason'];
+                                                   $success_notice = 'Mail error: ' . $mailResult['reason'];
                                                 }
 
                                                 $reloadUrl = "http://127.0.0.1:5001/reload_db";
@@ -533,14 +501,17 @@ if (!empty($faceImagesForApi) && !empty($username)) {
                                                 $error = $t['db_error'] . ": Failed to create initial history: " . $stmt_history->error;
                                             }
                                         }
+
                                     } else {
                                         $error = $t['db_error'] . ": Failed to create patient record: " . $stmt_patient->error;
                                     }
                                 }
+
                             } else {
                                 $error = $t['db_error'] . ": Failed to create user login: " . $stmt_login->error;
                             }
                         }
+
                     } else {
                         $error = $t['db_error'] . ": Failed to create registration: " . $stmt_reg->error;
                     }
@@ -553,11 +524,10 @@ if (!empty($faceImagesForApi) && !empty($username)) {
 <!doctype html>
 <html lang="<?= htmlspecialchars($lang) ?>" dir="<?= htmlspecialchars($dir) ?>">
 <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= htmlspecialchars($t['title']) ?></title>
-<link rel="icon" href="favicon.ico" type="image/x-icon">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
@@ -565,430 +535,606 @@ if (!empty($faceImagesForApi) && !empty($username)) {
     --bg-1:#08111f;
     --bg-2:#0d1b2f;
     --bg-3:#12385f;
-    --primary:#1478d4;
-    --primary-dark:#0f62b8;
-    --success:#18b957;
-    --success-dark:#159447;
+    --primary:#1f8fff;
+    --primary-dark:#116ad0;
+    --success:#17a34a;
+    --success-dark:#12833c;
     --text:#0f172a;
     --muted:#64748b;
     --line:#dbe4ee;
-    --card:rgba(255,255,255,0.96);
+    --card:rgba(255,255,255,0.94);
     --white:#ffffff;
-    --shadow:0 24px 70px rgba(2, 12, 27, 0.38);
+    --shadow:0 20px 60px rgba(2, 12, 27, 0.35);
+    --warning:#f59e0b;
     --danger:#dc2626;
 }
-*{box-sizing:border-box;margin:0;padding:0}
+
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+}
+
 body{
     font-family:'Inter',sans-serif;
     min-height:100vh;
     background:
         radial-gradient(circle at 15% 20%, rgba(31,143,255,0.25), transparent 22%),
         radial-gradient(circle at 85% 18%, rgba(34,197,94,0.18), transparent 20%),
+        radial-gradient(circle at 50% 85%, rgba(14,165,233,0.18), transparent 24%),
         linear-gradient(135deg, var(--bg-1), var(--bg-2) 45%, var(--bg-3));
     display:flex;
-   align-items: start;
-    justify-content: flex-start;
-padding-top: 80px;
+    align-items:center;
+    justify-content:center;
     padding:28px 16px;
     color:var(--text);
 }
+
 .page-shell{
     width:100%;
     max-width:1220px;
     display:grid;
     grid-template-columns: 1.05fr 0.95fr;
     gap:32px;
-    align-items: start; /* 👈 مهم */
+    align-items:center;
 }
 
 .hero-panel{
     color:#fff;
-    padding:80px 40px 40px;
-    display:flex;
-    flex-direction:column;
-    justify-content:flex-start; /* 👈 بدل center */
-    gap:20px;
-}
-.eyebrow{
-    display:inline-flex;align-items:center;gap:10px;
-    padding:10px 14px;border:1px solid rgba(255,255,255,0.16);
-    background:rgba(255,255,255,0.08);border-radius:999px;
-    font-size:13px;font-weight:600;margin-bottom:20px;backdrop-filter: blur(10px);
-}
-.hero-title{
-    font-size: clamp(34px, 5vw, 58px);
-    line-height:1.04;font-weight:800;letter-spacing:-1.5px;margin-bottom:16px;
-}
-.hero-text{
-    max-width:560px;font-size:16px;line-height:1.8;color:rgba(255,255,255,0.84);margin-bottom:28px;
-}
-.hero-points{display:grid;grid-template-columns:1fr;gap:14px;max-width:560px}
-.point-card{
-    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
-    border-radius:18px;padding:16px 16px;backdrop-filter: blur(10px);
-}
-.point-title{font-size:14px;font-weight:700;margin-bottom:5px;color:#fff}
-.point-text{font-size:13px;line-height:1.6;color:rgba(255,255,255,0.75)}
-.register-card{
-    width:100%;max-width:590px;margin-inline:auto;background:var(--card);
-    border:1px solid rgba(255,255,255,0.7);backdrop-filter: blur(18px);
-    border-radius:28px;box-shadow:var(--shadow);padding:28px 28px 24px;position:relative;
-}
-.lang-toggle{
-    position:absolute;top:18px;<?= ($dir === 'rtl') ? 'left' : 'right' ?>:18px;display:flex;gap:8px;
-}
-.lang-toggle a{
-    min-width:44px;text-align:center;padding:8px 10px;border-radius:12px;text-decoration:none;
-    font-size:13px;font-weight:700;border:1px solid #c7d5e4;color:#27527b;background:rgba(255,255,255,0.65);
-}
-.lang-toggle a.active{background:#eef6ff;border-color:#9cc5f1;color:#0f62b8}
-.brand-wrap{
-    display:flex;align-items:center;justify-content:center;gap:14px;margin-top:6px;margin-bottom:10px;
-}
-.brand-badge{
-    width:64px;height:64px;border-radius:20px;background:#fff;border:1px solid #dbeafe;
-    display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(31,143,255,0.12);overflow:hidden;
-}
-.brand-badge img{width:58px;height:58px;object-fit:contain;display:block}
-.brand-text h1{font-size:22px;font-weight:800;line-height:1.2;color:#136f33;text-align:center}
-.subtitle{text-align:center;color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.7}
-.error,.notice{
-    text-align:center;margin-bottom:14px;font-size:14px;border-radius:14px;padding:12px 14px;font-weight:600;
-}
-.error{background:#fff1f2;border:1px solid #fecdd3;color:#be123c}
-.notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.form-group{margin-bottom:14px}
-.field-label{font-size:13px;font-weight:700;color:#27425d;margin-bottom:8px;display:block}
-.input-wrap{position:relative}
-.input-wrap .icon{
-    position:absolute;top:50%;transform:translateY(-50%);
-    <?= ($dir === 'rtl') ? 'right:14px;' : 'left:14px;' ?>
-    font-size:15px;color:#1478d4;pointer-events:none;z-index:2;
-}
-.form-input,.form-select,.form-textarea{
-    width:100%;border:1px solid var(--line);border-radius:16px;font-size:15px;
-    background:#f8fbff;color:var(--text);transition:all .2s ease;
-}
-.form-input,.form-select{
-    height:56px;
-    <?= ($dir === 'rtl') ? 'padding:0 44px 0 48px;' : 'padding:0 48px 0 44px;' ?>
-}
-.form-textarea{min-height:112px;resize:vertical;padding:14px 16px}
-.form-input:focus,.form-select:focus,.form-textarea:focus{
-    outline:none;border-color:#7ab6f7;box-shadow:0 0 0 4px rgba(31,143,255,0.10);background:#fff;
-}
-.toggle-eye{
-    position:absolute;top:50%;transform:translateY(-50%);
-    <?= ($dir === 'rtl') ? 'left:14px;' : 'right:14px;' ?>
-    width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-    cursor:pointer;color:#1478d4;z-index:5;border-radius:50%;
-}
-.toggle-eye:hover{background:#e8f3ff}
-.toggle-eye i{font-size:17px}
-.password-hint,.helper-line{
-    font-size:12px;color:#64748b;margin-top:6px;padding-inline:4px;line-height:1.5;
-}
-.field-error{
-    color:var(--danger);font-size:12px;font-weight:700;margin-top:6px;line-height:1.5;padding-inline:4px;
-}
-.has-error .form-input,.has-error .form-select,.has-error .form-textarea,
-.form-input.invalid,.form-select.invalid,.form-textarea.invalid{
-    border-color:#fca5a5;background:#fff7f7;
-}
-.file-group input[type=file]{
-    width:100%;border:1px solid var(--line);border-radius:14px;padding:14px 12px;background:#f8fbff;
-}
-.face-actions{display:flex;flex-direction:column;gap:10px;margin-top:8px}
-.btn-main,.btn-soft,.btn-submit{
-    width:100%;border:none;border-radius:16px;height:54px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s ease;
-}
-.btn-main{background:linear-gradient(135deg, var(--primary), #35a2ff);color:#fff;box-shadow:0 12px 24px rgba(31,143,255,0.18)}
-.btn-main:hover{background:linear-gradient(135deg, var(--primary-dark), #1f8fff)}
-.btn-soft{background:#ffffff;color:#11713b;border:2px solid rgba(23,163,74,0.20)}
-.btn-soft:hover{background:#f2fff6}
-.btn-submit{margin-top:6px;background:linear-gradient(135deg, var(--success), #22c55e);color:#fff;box-shadow:0 12px 24px rgba(23,163,74,0.20)}
-.btn-submit:hover{background:linear-gradient(135deg, var(--success-dark), #16a34a)}
-.face-box{
-    position:relative;width:100%;max-width:380px;height:270px;margin:12px auto 0;border-radius:18px;
-    overflow:hidden;border:2px solid rgba(23,163,74,0.45);background:#09111d;display:none;box-shadow:0 10px 30px rgba(0,0,0,0.12);
-}
-.face-box video,.face-box canvas{width:100%;height:100%;object-fit:cover}
-.face-box canvas{position:absolute;top:0;left:0;z-index:2}
-.face-guide{
-    position:absolute;top:50%;left:50%;width:180px;height:215px;transform:translate(-50%, -50%);
-    border:3px solid #22c55e;border-radius:20px;box-shadow:0 0 0 9999px rgba(0,0,0,0.16);z-index:3;pointer-events:none;
-}
-.face-status{font-size:13px;text-align:center;margin-top:10px;color:#41576f;min-height:20px;line-height:1.6;font-weight:600}
-.counter-box{text-align:center;font-weight:800;color:#0f62b8;margin-top:10px;min-height:22px}
-.angle-badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:10px}
-.angle-badge{
-    padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800;background:#eef2f7;color:#475569;border:1px solid #dbe4ee;
-}
-.angle-badge.active{background:#dbeafe;color:#0f62b8;border-color:#93c5fd}
-.angle-badge.done{background:#dcfce7;color:#166534;border-color:#86efac}
-.links{text-align:center;margin-top:18px;font-size:14px;line-height:1.9}
-.links a{color:#0f62b8;text-decoration:none;font-weight:600}
-.links a:hover{text-decoration:underline}
-@media(max-width:980px){
-    .page-shell{grid-template-columns:1fr;gap:18px}
-    .hero-panel{display:none}
-    .register-card{max-width:620px}
-}
-@media(max-width:700px){.grid-2{grid-template-columns:1fr}}
-@media(max-width:560px){
-    body{padding:18px 12px}
-    .register-card{padding:22px 18px 20px;border-radius:22px}
-    .brand-wrap{flex-direction:column;gap:10px;margin-top:10px}
-}.hero-panel{
-    color:#fff;
-    padding:50px 40px;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    gap:20px;
+    padding:20px 6px 20px 10px;
 }
 
-/* badge */
-.badge{
+.eyebrow{
     display:inline-flex;
     align-items:center;
     gap:10px;
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.15);
     padding:10px 14px;
+    border:1px solid rgba(255,255,255,0.16);
+    background:rgba(255,255,255,0.08);
     border-radius:999px;
     font-size:13px;
     font-weight:600;
-    width:fit-content;
-}
-
-/* title */
-.hero-title{
-    font-size:42px;
-    font-weight:700;
-    line-height:1.2;
-    max-width:500px;
-}
-
-/* description */
-.hero-desc{
-    font-size:15px;
-    color:#cbd5e1;
-    max-width:480px;
-    line-height:1.7;
-}
-
-/* cards */
-.hero-cards{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:15px;
-    margin-top:10px;
-}
-
-/* card */
-.hero-card{
-    display:flex;
-    gap:12px;
-    background:rgba(255,255,255,0.08);
-    padding:14px;
-    border-radius:14px;
-    align-items:flex-start;
-}
-
-.hero-card i{
-    font-size:18px;
-    color:#22c55e;
-    margin-top:4px;
-}
-
-.hero-card h4{
-    font-size:14px;
-    margin-bottom:3px;
-}
-
-.hero-card p{
-    font-size:12px;
-    color:#cbd5e1;
-}''
-
-.page-shell{
-    width:100%;
-    max-width:1400px;
-    margin:0 auto;
-    display:grid;
-    grid-template-columns: 1fr 0.95fr;
-    gap:40px;
-    align-items:start !important;
-}
-
-.hero-panel{
-    color:#fff;
-    min-height:auto !important;
-    height:auto !important;
-    display:flex;
-    align-items:flex-start !important;
-    justify-content:flex-start !important;
-    padding:100px 30px 40px 50px !important;
-}
-
-.hero-content{
-    width:100%;
-    max-width:620px;
-    display:flex;
-    flex-direction:column;
-    gap:18px;
-    margin-top:0 !important;
+    letter-spacing:0.2px;
+    margin-bottom:20px;
+    backdrop-filter: blur(10px);
 }
 
 .hero-title{
-    font-size:46px;
-    line-height:1.12;
+    font-size: clamp(34px, 5vw, 58px);
+    line-height:1.04;
     font-weight:800;
-    max-width:600px;
+    letter-spacing:-1.5px;
+    margin-bottom:16px;
 }
 
-.hero-desc{
+.hero-text{
+    max-width:560px;
     font-size:16px;
-    line-height:1.7;
-    color:#dbeafe;
+    line-height:1.8;
+    color:rgba(255,255,255,0.84);
+    margin-bottom:28px;
+}
+
+.hero-points{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:14px;
     max-width:560px;
 }
 
-.hero-stats{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:12px;
+.point-card{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:18px;
+    padding:16px 16px;
+    backdrop-filter: blur(10px);
 }
 
-.hero-cards{
+.point-title{
+    font-size:14px;
+    font-weight:700;
+    margin-bottom:5px;
+    color:#fff;
+}
+
+.point-text{
+    font-size:13px;
+    line-height:1.6;
+    color:rgba(255,255,255,0.75);
+}
+
+.register-card{
+    width:100%;
+    max-width:560px;
+    margin-inline:auto;
+    background:var(--card);
+    border:1px solid rgba(255,255,255,0.7);
+    backdrop-filter: blur(18px);
+    border-radius:28px;
+    box-shadow:var(--shadow);
+    padding:28px 28px 24px;
+    position:relative;
+}
+
+.lang-toggle{
+    position:absolute;
+    top:18px;
+    <?= ($dir === 'rtl') ? 'left' : 'right' ?>: 18px;
+    display:flex;
+    gap:8px;
+}
+
+.lang-toggle a{
+    min-width:44px;
+    text-align:center;
+    padding:8px 10px;
+    border-radius:12px;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:700;
+    border:1px solid #c7d5e4;
+    color:#27527b;
+    background:rgba(255,255,255,0.65);
+    transition:all .2s ease;
+}
+
+.lang-toggle a.active{
+    background:#eef6ff;
+    border-color:#9cc5f1;
+    color:#0f62b8;
+}
+
+.lang-toggle a:hover{
+    background:#eef6ff;
+    border-color:#9cc5f1;
+}
+
+.brand-wrap{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    margin-top:6px;
+    margin-bottom:10px;
+}
+
+.brand-badge{
+    width:54px;
+    height:54px;
+    border-radius:18px;
+    background:linear-gradient(135deg, #e8f3ff, #f0fff5);
+    border:1px solid #dbeafe;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:28px;
+    box-shadow:0 8px 24px rgba(31,143,255,0.12);
+}
+
+.brand-text h1{
+    font-size:20px;
+    font-weight:800;
+    line-height:1.2;
+    color:#136f33;
+    text-align:center;
+}
+
+.subtitle{
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+    margin-bottom:22px;
+    line-height:1.7;
+}
+
+.error{
+    background:#fff1f2;
+    border:1px solid #fecdd3;
+    color:#be123c;
+    text-align:center;
+    margin-bottom:14px;
+    font-size:14px;
+    border-radius:14px;
+    padding:12px 14px;
+    font-weight:600;
+}
+
+.notice{
+    background:#fff7ed;
+    border:1px solid #fed7aa;
+    color:#9a3412;
+    text-align:center;
+    margin-bottom:14px;
+    font-size:14px;
+    border-radius:14px;
+    padding:12px 14px;
+    font-weight:600;
+}
+
+.grid-2{
     display:grid;
     grid-template-columns:1fr 1fr;
     gap:14px;
 }
-.hero-features{
+
+.form-group{
+    margin-bottom:14px;
+}
+
+.field-label{
+    font-size:13px;
+    font-weight:700;
+    color:#27425d;
+    margin-bottom:8px;
+    display:block;
+}
+
+.input-wrap{
+    position:relative;
+}
+
+.input-wrap .icon{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    <?= ($dir === 'rtl') ? 'right:14px;' : 'left:14px;' ?>
+    font-size:15px;
+    color:#7c90a8;
+    pointer-events:none;
+}
+
+.form-input,
+.form-select,
+.form-textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:16px;
+    font-size:15px;
+    background:#f8fbff;
+    color:var(--text);
+    transition:all .2s ease;
+}
+
+.form-input,
+.form-select{
+    height:56px;
+    <?= ($dir === 'rtl') ? 'padding:0 44px 0 48px;' : 'padding:0 48px 0 44px;' ?>
+}
+.form-textarea{
+    min-height:112px;
+    resize:vertical;
+    padding:14px 16px;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus{
+    outline:none;
+    border-color:#7ab6f7;
+    box-shadow:0 0 0 4px rgba(31,143,255,0.10);
+    background:#fff;
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder{
+    color:#8a9aae;
+}
+
+.helper-line{
+    font-size:12px;
+    color:#7f8ea3;
+    margin-top:6px;
+    padding-inline:4px;
+}
+
+.file-group{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.file-group input[type=file]{
+    flex:1;
+    min-width:0;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 12px;
+    background:#f8fbff;
+}
+
+.small-camera-btn{
+    min-width:56px;
+    height:56px;
+    border:none;
+    border-radius:14px;
+    background:linear-gradient(135deg, var(--primary), #35a2ff);
+    color:#fff;
+    font-size:18px;
+    cursor:pointer;
+    box-shadow:0 10px 20px rgba(31,143,255,0.18);
+}
+
+.small-camera-btn:hover{
+    background:linear-gradient(135deg, var(--primary-dark), #1f8fff);
+}
+
+.preview-img{
+    width:100%;
+    max-width:380px;
+    height:240px;
+    object-fit:cover;
+    border-radius:16px;
+    border:2px solid #60a5fa;
+    display:none;
+    margin:12px auto 0;
+    box-shadow:0 10px 24px rgba(31,143,255,0.10);
+}
+
+.face-actions{
     display:flex;
     flex-direction:column;
-    gap:18px;
-    margin-top:20px;
+    gap:10px;
+    margin-top:8px;
 }
 
-.feature-item{
-    display:flex;
-    gap:14px;
-    background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.14);
-    padding:16px;
+.btn-main,
+.btn-soft,
+.btn-submit{
+    width:100%;
+    border:none;
+    border-radius:16px;
+    height:54px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    transition:all .2s ease;
+}
+
+.btn-main{
+    background:linear-gradient(135deg, var(--primary), #35a2ff);
+    color:#fff;
+    box-shadow:0 12px 24px rgba(31,143,255,0.18);
+}
+
+.btn-main:hover{
+    background:linear-gradient(135deg, var(--primary-dark), #1f8fff);
+}
+
+.btn-soft{
+    background:#ffffff;
+    color:#11713b;
+    border:2px solid rgba(23,163,74,0.20);
+}
+
+.btn-soft:hover{
+    background:#f2fff6;
+}
+
+.btn-submit{
+    margin-top:6px;
+    background:linear-gradient(135deg, var(--success), #22c55e);
+    color:#fff;
+    box-shadow:0 12px 24px rgba(23,163,74,0.20);
+}
+
+.btn-submit:hover{
+    background:linear-gradient(135deg, var(--success-dark), #16a34a);
+}
+
+.face-box{
+    position:relative;
+    width:100%;
+    max-width:380px;
+    height:270px;
+    margin:12px auto 0;
     border-radius:18px;
-    backdrop-filter:blur(10px);
+    overflow:hidden;
+    border:2px solid rgba(23,163,74,0.45);
+    background:#09111d;
+    display:none;
+    box-shadow:0 10px 30px rgba(0,0,0,0.12);
 }
 
-.feature-item i{
-    width:40px;
-    height:40px;
-    border-radius:12px;
-    background:rgba(255,255,255,0.12);
+.face-box video,
+.face-box canvas{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+}
+
+.face-box canvas{
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:2;
+}
+
+.face-guide{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:180px;
+    height:215px;
+    transform:translate(-50%, -50%);
+    border:3px solid #22c55e;
+    border-radius:20px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,0.16);
+    z-index:3;
+    pointer-events:none;
+}
+
+.face-status{
+    font-size:13px;
+    text-align:center;
+    margin-top:10px;
+    color:#41576f;
+    min-height:20px;
+    line-height:1.6;
+    font-weight:600;
+}
+
+.counter-box{
+    text-align:center;
+    font-weight:800;
+    color:#0f62b8;
+    margin-top:10px;
+    min-height:22px;
+}
+
+.angle-badges{
+    display:flex;
+    justify-content:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:10px;
+}
+
+.angle-badge{
+    padding:8px 12px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    background:#eef2f7;
+    color:#475569;
+    border:1px solid #dbe4ee;
+}
+
+.angle-badge.active{
+    background:#dbeafe;
+    color:#0f62b8;
+    border-color:#93c5fd;
+}
+
+.angle-badge.done{
+    background:#dcfce7;
+    color:#166534;
+    border-color:#86efac;
+}
+
+.toggle-eye{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    <?= ($dir === 'rtl') ? 'left:14px;' : 'right:14px;' ?>
+    width:22px;
+    height:22px;
     display:flex;
     align-items:center;
     justify-content:center;
-    color:#22c55e;
-    font-size:16px;
+    cursor:pointer;
+    color:#6b7c93;
+    user-select:none;
 }
 
-.feature-item h4{
-    font-size:15px;
-    margin-bottom:4px;
+.toggle-eye i{
+    font-size:18px;
+}
+.links{
+    text-align:center;
+    margin-top:18px;
+    font-size:14px;
+    line-height:1.9;
 }
 
-.feature-item p{
-    font-size:13px;
-    color:#cbd5e1;
-    line-height:1.6;
-}
-.field-error{
-    color:#dc2626;
-    font-size:13px;
-    margin-top:6px;
+.links a{
+    color:#0f62b8;
+    text-decoration:none;
     font-weight:600;
+}
+
+.links a:hover{
+    text-decoration:underline;
+}
+
+@media (max-width: 980px){
+    .page-shell{
+        grid-template-columns:1fr;
+        gap:18px;
+    }
+
+    .hero-panel{
+        display:none;
+    }
+
+    .register-card{
+        max-width:620px;
+    }
+}
+
+@media (max-width: 700px){
+    .grid-2{
+        grid-template-columns:1fr;
+    }
+}
+
+@media (max-width: 560px){
+    body{
+        padding:18px 12px;
+    }
+
+    .register-card{
+        padding:22px 18px 20px;
+        border-radius:22px;
+    }
+
+    .lang-toggle{
+        top:14px;
+        <?= ($dir === 'rtl') ? 'left' : 'right' ?>: 14px;
+    }
+
+    .brand-wrap{
+        flex-direction:column;
+        gap:10px;
+        margin-top:10px;
+    }
+
+    .brand-text h1{
+        font-size:18px;
+    }
+
+    .face-actions{
+        flex-direction:column;
+    }
 }
 </style>
 </head>
 <body>
 <div class="page-shell">
-<section class="hero-panel">
-    <div class="hero-content">
-
-        <div class="badge">
-            <i class="fa-solid fa-shield-heart"></i>
-            <span>Trusted digital healthcare platform</span>
+    <section class="hero-panel">
+        <div class="eyebrow">
+            <span>🩺</span>
+            <span><?= ($lang === 'ar') ? 'تجربة تسجيل احترافية وآمنة' : 'A premium and secure registration experience' ?></span>
         </div>
 
-        <h1 class="hero-title">
-            Create your account and access smarter healthcare services.
-        </h1>
+        <h2 class="hero-title">
+            <?= ($lang === 'ar')
+                ? 'ابدأ رحلتك الطبية بحساب موثوق وتجربة تسجيل أنيقة'
+                : 'Start your healthcare journey with a trusted account and a refined registration flow' ?>
+        </h2>
 
-        <p class="hero-desc">
-            Join Cairo Hospitals and experience a modern healthcare system designed
-            to simplify your medical journey. From secure registration to smart face login,
-            everything is built to save your time and protect your data.
+        <p class="hero-text">
+            <?= ($lang === 'ar')
+                ? 'أنشئ حسابك للوصول إلى خدمات المستشفى، إدارة المواعيد، والاستفادة من تسجيل الدخول بالتعرف على الوجه في تجربة حديثة وآمنة.'
+                : 'Create your account to access hospital services, manage appointments, and benefit from face recognition login in a modern secure flow.' ?>
         </p>
 
-        <!-- Features -->
-        <div class="hero-features">
-
-            <div class="feature-item">
-                <i class="fa-solid fa-user-shield"></i>
-                <div>
-                    <h4>Secure Registration</h4>
-                    <p>Your personal and medical data are protected with advanced security standards.</p>
-                </div>
+        <div class="hero-points">
+            <div class="point-card">
+                <div class="point-title"><?= ($lang === 'ar') ? 'تسجيل آمن' : 'Secure onboarding' ?></div>
+                <div class="point-text"><?= ($lang === 'ar') ? 'تجربة تسجيل أكثر أمانًا مع التحقق من كلمة المرور ودعم مسح الوجه الموجّه.' : 'A safer registration flow with password validation and guided face scan support.' ?></div>
             </div>
 
-            <div class="feature-item">
-                <i class="fa-solid fa-calendar-check"></i>
-                <div>
-                    <h4>Appointment Management</h4>
-                    <p>Easily book, manage, and track all your hospital visits in one place.</p>
-                </div>
+            <div class="point-card">
+                <div class="point-title"><?= ($lang === 'ar') ? 'وصول أسرع' : 'Smart access' ?></div>
+                <div class="point-text"><?= ($lang === 'ar') ? 'يتم التقاط الوجه من عدة زوايا لتحسين دقة تسجيل الدخول لاحقًا.' : 'Multiple face angles are captured to improve recognition accuracy later.' ?></div>
             </div>
 
-            <div class="feature-item">
-                <i class="fa-solid fa-file-medical"></i>
-                <div>
-                    <h4>Medical Records</h4>
-                    <p>Access your medical history, diagnoses, and treatments anytime.</p>
-                </div>
+            <div class="point-card">
+                <div class="point-title"><?= ($lang === 'ar') ? 'إرسال بيانات الحساب' : 'Credential email' ?></div>
+                <div class="point-text"><?= ($lang === 'ar') ? 'بعد إنشاء الحساب سيتم إرسال اسم المستخدم وكلمة المرور إلى البريد الإلكتروني المُدخل.' : 'After registration, the username and password will be sent to the entered email.' ?></div>
             </div>
-
-            <div class="feature-item">
-                <i class="fa-solid fa-camera"></i>
-                <div>
-                    <h4>Face Recognition Login</h4>
-                    <p>Register your face securely for faster and smarter login experience.</p>
-                </div>
-            </div>
-
-            <div class="feature-item">
-                <i class="fa-solid fa-envelope"></i>
-                <div>
-                    <h4>Email Notifications</h4>
-                    <p>Receive your account credentials and updates directly via email.</p>
-                </div>
-            </div>
-
-            <div class="feature-item">
-                <i class="fa-solid fa-clock"></i>
-                <div>
-                    <h4>24/7 Access</h4>
-                    <p>Use the system anytime, anywhere without limitations.</p>
-                </div>
-            </div>
-
         </div>
-
-    </div>
-</section>
+    </section>
 
     <section class="register-card">
         <div class="lang-toggle">
@@ -997,9 +1143,7 @@ padding-top: 80px;
         </div>
 
         <div class="brand-wrap">
-            <div class="brand-badge">
-                <img src="favicon.ico" alt="Cairo Hospitals">
-            </div>
+            <div class="brand-badge">🏥</div>
             <div class="brand-text">
                 <h1><?= ($lang === 'ar') ? 'مستشفيات القاهرة' : 'Cairo Hospitals' ?></h1>
             </div>
@@ -1015,172 +1159,141 @@ padding-top: 80px;
             <div class="notice"><?= htmlspecialchars($success_notice) ?></div>
         <?php endif; ?>
 
-        <form method="POST" enctype="multipart/form-data" id="registerForm" novalidate>
-            <div class="grid-2">
-                <div class="form-group <?= !empty($fieldErrors['first_name']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['first_name']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-user icon"></i>
-                        <input class="form-input" type="text" name="first_name" id="first_name" value="<?= old_value('first_name', $old) ?>" required>
-                    </div>
-                    <?= field_error('first_name', $fieldErrors) ?>
-                    <div class="field-error client-error" id="first_name_error"></div>
-                </div>
+       <form method="POST" enctype="multipart/form-data" id="registerForm">
 
-                <div class="form-group <?= !empty($fieldErrors['last_name']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['last_name']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-user icon"></i>
-                        <input class="form-input" type="text" name="last_name" id="last_name" value="<?= old_value('last_name', $old) ?>" required>
-                    </div>
-                    <?= field_error('last_name', $fieldErrors) ?>
-                    <div class="field-error client-error" id="last_name_error"></div>
-                </div>
+    <div class="grid-2">
+        <div class="form-group">
+            <label class="field-label"><?= ($lang === 'ar') ? 'الاسم الأول' : 'First Name' ?></label>
+            <div class="input-wrap">
+                <span class="icon">👤</span>
+                <input class="form-input" type="text" name="first_name" required>
             </div>
+        </div>
 
-            <div class="grid-2">
-                <div class="form-group <?= !empty($fieldErrors['username']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['username']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-user-shield icon"></i>
-                        <input class="form-input" type="text" name="username" id="username" value="<?= old_value('username', $old) ?>" required>
-                    </div>
-                    <?= field_error('username', $fieldErrors) ?>
-                    <div class="field-error client-error" id="username_error"></div>
-                </div>
-
-                <div class="form-group <?= !empty($fieldErrors['national_id']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-id-card icon"></i>
-                        <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" value="<?= old_value('national_id', $old) ?>" required>
-                    </div>
-                    <input type="hidden" name="ocr_national_id" id="ocr_national_id">
-<div class="field-error" id="national_id_match_error"></div>
-                    <?= field_error('national_id', $fieldErrors) ?>
-                    <div class="field-error client-error" id="national_id_error"></div>
-                </div>
+        <div class="form-group">
+            <label class="field-label"><?= ($lang === 'ar') ? 'اسم العائلة' : 'Last Name' ?></label>
+            <div class="input-wrap">
+                <span class="icon">👤</span>
+                <input class="form-input" type="text" name="last_name" required>
             </div>
+        </div>
+    </div>
 
-            <div class="grid-2">
-                <div class="form-group <?= !empty($fieldErrors['password']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['password']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-lock icon"></i>
-                        <input class="form-input" type="password" name="password" id="password" required minlength="8">
-                        <span class="toggle-eye" onclick="togglePassword('password', this)">
-                            <i class="fa-regular fa-eye"></i>
-                        </span>
-                    </div>
-                    <div class="password-hint">
-                        <?= ($lang === 'ar') ? '8 أحرف على الأقل، حرف كبير، حرف صغير، رقم ورمز خاص.' : 'Minimum 8 characters, uppercase, lowercase, number and special character.' ?>
-                    </div>
-                    <?= field_error('password', $fieldErrors) ?>
-                    <div class="field-error client-error" id="password_error"></div>
-                </div>
-
-                <div class="form-group <?= !empty($fieldErrors['confirm_password']) ? 'has-error' : '' ?>">
-                    <label class="field-label"><?= htmlspecialchars($t['confirm']) ?></label>
-                    <div class="input-wrap">
-                        <i class="fa-solid fa-lock icon"></i>
-                        <input class="form-input" type="password" name="confirm_password" id="confirm_password" required>
-                        <span class="toggle-eye" onclick="togglePassword('confirm_password', this)">
-                            <i class="fa-regular fa-eye"></i>
-                        </span>
-                    </div>
-                    <?= field_error('confirm_password', $fieldErrors) ?>
-                    <div class="field-error client-error" id="confirm_password_error"></div>
-                </div>
+    <div class="grid-2">
+        <div class="form-group">
+            <label class="field-label"><?= htmlspecialchars($t['username']) ?></label>
+            <div class="input-wrap">
+                <span class="icon">👤</span>
+                <input class="form-input" type="text" name="username" required>
             </div>
+        </div>
 
-            <div class="form-group <?= !empty($fieldErrors['nid_photo']) ? 'has-error' : '' ?>">
-                <label class="field-label"><?= htmlspecialchars($t['nid_photo']) ?></label>
-                <div class="file-group">
-                    <input type="file" name="nid_photo" id="nid_photo" accept="image/*" required>
-                </div>
-                <div class="helper-line"><?= ($lang === 'ar') ? 'ارفعي صورة بطاقة واضحة.' : 'Upload a clear image of your National ID.' ?></div>
-                <?= field_error('nid_photo', $fieldErrors) ?>
-                <div class="field-error client-error" id="nid_photo_error"></div>
+        <div class="form-group">
+            <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
+            <div class="input-wrap">
+                <span class="icon">🪪</span>
+                <input class="form-input" type="text" name="national_id" maxlength="14" required>
             </div>
+        </div>
+    </div>
 
+    <div class="grid-2">
+       <div class="form-group">
+    <label class="field-label"><?= htmlspecialchars($t['password']) ?></label>
+    <div class="input-wrap">
+        <span class="icon">🔒</span>
+        <input class="form-input" type="password" name="password" id="password" required>
+        <span class="toggle-eye" onclick="togglePassword('password', this)">
+            <i class="fa-regular fa-eye"></i>
+        </span>
+    </div>
+</div>
+       <div class="form-group">
+    <label class="field-label"><?= htmlspecialchars($t['confirm']) ?></label>
+    <div class="input-wrap">
+        <span class="icon">✅</span>
+        <input class="form-input" type="password" name="confirm_password" id="confirm_password" required>
+        <span class="toggle-eye" onclick="togglePassword('confirm_password', this)">
+            <i class="fa-regular fa-eye"></i>
+        </span>
+    </div>
+</div>
+    </div>
+
+            <div class="form-group">
+    <label class="field-label"><?= htmlspecialchars($t['nid_photo']) ?></label>
+
+    <div class="file-group">
+        <input type="file" name="nid_photo" id="nidFile" accept="image/*" required>
+    </div>
+
+    <div class="helper-line">
+        <?= ($lang === 'ar') ? 'ارفعي صورة بطاقة واضحة.' : 'Upload a clear image of your National ID.' ?>
+    </div>
+</div>
             <div class="grid-2">
-                <div class="form-group <?= !empty($fieldErrors['gender']) ? 'has-error' : '' ?>">
+                <div class="form-group">
                     <label class="field-label"><?= htmlspecialchars($t['gender']) ?></label>
-                    <select class="form-select" name="gender" id="gender" required>
+                    <select class="form-select" name="gender" required>
                         <option value=""><?= htmlspecialchars($t['select_gender']) ?></option>
-                        <option value="Male" <?= (($old['gender'] ?? '') === 'Male') ? 'selected' : '' ?>><?= ($lang === 'ar') ? 'ذكر' : 'Male' ?></option>
-                        <option value="Female" <?= (($old['gender'] ?? '') === 'Female') ? 'selected' : '' ?>><?= ($lang === 'ar') ? 'أنثى' : 'Female' ?></option>
+                        <option value="Male"><?= ($lang === 'ar') ? 'ذكر' : 'Male' ?></option>
+                        <option value="Female"><?= ($lang === 'ar') ? 'أنثى' : 'Female' ?></option>
                     </select>
-                    <?= field_error('gender', $fieldErrors) ?>
-                    <div class="field-error client-error" id="gender_error"></div>
                 </div>
 
-                <div class="form-group <?= !empty($fieldErrors['governorate']) ? 'has-error' : '' ?>">
+                <div class="form-group">
                     <label class="field-label"><?= htmlspecialchars($t['governorate']) ?></label>
-                    <select class="form-select" name="governorate" id="governorate" required>
+                    <select class="form-select" name="governorate" required>
                         <option value=""><?= htmlspecialchars($t['select_governorate']) ?></option>
-                        <?php
-                        $govs = ['Cairo','Giza','Alexandria','Qalyubia','Dakahlia'];
-                        foreach ($govs as $gov):
-                        ?>
-                            <option value="<?= $gov ?>" <?= (($old['governorate'] ?? '') === $gov) ? 'selected' : '' ?>><?= $gov ?></option>
-                        <?php endforeach; ?>
+                        <option value="Cairo"><?= ($lang === 'ar') ? 'القاهرة' : 'Cairo' ?></option>
+                        <option value="Giza"><?= ($lang === 'ar') ? 'الجيزة' : 'Giza' ?></option>
+                        <option value="Alexandria"><?= ($lang === 'ar') ? 'الإسكندرية' : 'Alexandria' ?></option>
+                        <option value="Qalyubia"><?= ($lang === 'ar') ? 'القليوبية' : 'Qalyubia' ?></option>
+                        <option value="Dakahlia"><?= ($lang === 'ar') ? 'الدقهلية' : 'Dakahlia' ?></option>
                     </select>
-                    <?= field_error('governorate', $fieldErrors) ?>
-                    <div class="field-error client-error" id="governorate_error"></div>
                 </div>
             </div>
 
             <div class="grid-2">
-                <div class="form-group <?= !empty($fieldErrors['birthdate']) ? 'has-error' : '' ?>">
+                <div class="form-group">
                     <label class="field-label"><?= htmlspecialchars($t['birthdate']) ?></label>
-                    <input class="form-input" type="date" name="birthdate" id="birthdate" max="<?= date('Y-m-d') ?>" value="<?= old_value('birthdate', $old) ?>" required style="padding:0 16px;">
-                    <?= field_error('birthdate', $fieldErrors) ?>
-                    <div class="field-error client-error" id="birthdate_error"></div>
+                    <input class="form-input" type="date" name="birthdate" max="<?= date('Y-m-d') ?>" required style="padding:0 16px;">
                 </div>
 
-                <div class="form-group <?= !empty($fieldErrors['contact_number']) ? 'has-error' : '' ?>">
+                <div class="form-group">
                     <label class="field-label"><?= htmlspecialchars($t['phone']) ?></label>
                     <div class="input-wrap">
-                        <i class="fa-solid fa-phone icon"></i>
-                        <input class="form-input" type="text" name="contact_number" id="contact_number" value="<?= old_value('contact_number', $old) ?>" required>
+                        <span class="icon">📞</span>
+                        <input class="form-input" type="text" name="contact_number" required>
                     </div>
-                    <?= field_error('contact_number', $fieldErrors) ?>
-                    <div class="field-error client-error" id="contact_number_error"></div>
                 </div>
             </div>
 
-            <div class="form-group <?= !empty($fieldErrors['email']) ? 'has-error' : '' ?>">
+            <div class="form-group">
                 <label class="field-label"><?= htmlspecialchars($t['email']) ?></label>
                 <div class="input-wrap">
-                    <i class="fa-solid fa-envelope icon"></i>
-                    <input class="form-input" type="email" name="email" id="email" value="<?= old_value('email', $old) ?>" required>
+                    <span class="icon">✉️</span>
+                    <input class="form-input" type="email" name="email" required>
                 </div>
-                <?= field_error('email', $fieldErrors) ?>
-                <div class="field-error client-error" id="email_error"></div>
             </div>
 
-            <div class="form-group <?= !empty($fieldErrors['address']) ? 'has-error' : '' ?>">
+            <div class="form-group">
                 <label class="field-label"><?= htmlspecialchars($t['address']) ?></label>
-                <textarea class="form-textarea" name="address" id="address" required><?= old_value('address', $old) ?></textarea>
-                <?= field_error('address', $fieldErrors) ?>
-                <div class="field-error client-error" id="address_error"></div>
+                <textarea class="form-textarea" name="address" required></textarea>
             </div>
 
-            <div class="form-group <?= !empty($fieldErrors['face_images_json']) ? 'has-error' : '' ?>">
+            <div class="form-group">
                 <label class="field-label"><?= htmlspecialchars($t['face_scan']) ?></label>
 
                 <div class="face-actions">
-                    <button type="button" class="btn-main" id="openFaceCameraBtn">
-                        <i class="fa-solid fa-camera"></i> <?= htmlspecialchars($t['open_face_camera']) ?>
-                    </button>
-                    <button type="button" class="btn-soft" id="startFaceScanBtn" style="display:none;">
-                        <i class="fa-solid fa-face-smile"></i> <?= htmlspecialchars($t['start_face_scan']) ?>
-                    </button>
+                    <button type="button" class="btn-main" id="openFaceCameraBtn"><?= htmlspecialchars($t['open_face_camera']) ?></button>
+                    <button type="button" class="btn-soft" id="startFaceScanBtn" style="display:none;"><?= htmlspecialchars($t['start_face_scan']) ?></button>
                 </div>
 
                 <div class="helper-line">
-                    <?= ($lang === 'ar') ? 'ضعي الوجه داخل الإطار الأخضر. سيتم التقاط صورتين لكل زاوية: الأمام ثم اليمين ثم اليسار.' : 'Place your face inside the green frame. Two photos will be captured for each angle: front, then right, then left.' ?>
+                    <?= ($lang === 'ar')
+                        ? 'ضعي الوجه داخل الإطار الأخضر. سيتم التقاط صورتين لكل زاوية: الأمام ثم اليمين ثم اليسار.'
+                        : 'Place your face inside the green frame. Two photos will be captured for each angle: front, then right, then left.' ?>
                 </div>
 
                 <div class="face-box" id="faceBox">
@@ -1198,13 +1311,9 @@ padding-top: 80px;
                 <div class="counter-box" id="faceCounter"></div>
                 <div class="face-status" id="faceStatus"></div>
                 <input type="hidden" name="face_images_json" id="face_images_json">
-                <?= field_error('face_images_json', $fieldErrors) ?>
-                <div class="field-error client-error" id="face_images_json_error"></div>
             </div>
 
-            <button type="submit" class="btn-submit">
-                <i class="fa-solid fa-user-plus"></i> <?= htmlspecialchars($t['register']) ?>
-            </button>
+            <button type="submit" class="btn-submit"><?= htmlspecialchars($t['register']) ?></button>
 
             <div class="links">
                 <a href="index.php"><?= htmlspecialchars($t['back']) ?></a>
@@ -1214,55 +1323,6 @@ padding-top: 80px;
 </div>
 
 <script>
-/* =========================
-   Inline field errors
-========================= */
-const messages = {
-    required: <?= json_encode($t['error_fill']) ?>,
-    password: <?= json_encode($t['error_invalid']) ?>,
-    confirm: <?= json_encode($t['error_match']) ?>,
-    nid: <?= json_encode($t['error_nid']) ?>,
-    email: <?= json_encode($t['error_email']) ?>,
-    birthdate: <?= json_encode($t['error_birthdate']) ?>,
-    face: <?= json_encode($t['face_required']) ?>
-};
-
-function setError(fieldId, message){
-    const field = document.getElementById(fieldId);
-    const errorBox = document.getElementById(fieldId + '_error');
-    if(field){ field.classList.add('invalid'); }
-    if(errorBox){ errorBox.textContent = message; }
-}
-
-function clearError(fieldId){
-    const field = document.getElementById(fieldId);
-    const errorBox = document.getElementById(fieldId + '_error');
-    if(field){ field.classList.remove('invalid'); }
-    if(errorBox){ errorBox.textContent = ''; }
-}
-
-function togglePassword(inputId, el){
-    const input = document.getElementById(inputId);
-    const icon = el.querySelector("i");
-
-    if(input.type === "password"){
-        input.type = "text";
-        icon.classList.remove("fa-eye");
-        icon.classList.add("fa-eye-slash");
-    }else{
-        input.type = "password";
-        icon.classList.remove("fa-eye-slash");
-        icon.classList.add("fa-eye");
-    }
-}
-
-['first_name','last_name','username','national_id','password','confirm_password','gender','governorate','birthdate','contact_number','email','address','nid_photo'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el){
-        el.addEventListener('input', () => clearError(id));
-        el.addEventListener('change', () => clearError(id));
-    }
-});
 
 /* =========================
    FACE CAMERA - Guided Angles
@@ -1282,9 +1342,9 @@ let capturedFaces = [];
 let scanRunning = false;
 
 const angleSteps = [
-    { key: 'front', label: <?= json_encode($t['face_front']) ?> },
-    { key: 'right', label: <?= json_encode($t['face_right']) ?> },
-    { key: 'left',  label: <?= json_encode($t['face_left']) ?> }
+    { key: 'front', label: '<?= addslashes($t['face_front']) ?>' },
+    { key: 'right', label: '<?= addslashes($t['face_right']) ?>' },
+    { key: 'left',  label: '<?= addslashes($t['face_left']) ?>' }
 ];
 
 const PHOTOS_PER_ANGLE = 2;
@@ -1293,7 +1353,9 @@ const TOTAL_REQUIRED = angleSteps.length * PHOTOS_PER_ANGLE;
 function setActiveAngle(angleKey) {
     angleBadges.forEach(badge => {
         badge.classList.remove('active');
-        if (badge.dataset.angle === angleKey) badge.classList.add('active');
+        if (badge.dataset.angle === angleKey) {
+            badge.classList.add('active');
+        }
     });
 }
 
@@ -1307,7 +1369,9 @@ function markAngleDone(angleKey) {
 }
 
 function resetAngleBadges() {
-    angleBadges.forEach(badge => badge.classList.remove('active', 'done'));
+    angleBadges.forEach(badge => {
+        badge.classList.remove('active', 'done');
+    });
 }
 
 function sleep(ms) {
@@ -1318,19 +1382,21 @@ function captureFrame(angleKey) {
     const ctx = faceCanvas.getContext('2d');
     ctx.drawImage(faceVideo, 0, 0, faceCanvas.width, faceCanvas.height);
     const imageData = faceCanvas.toDataURL('image/jpeg', 0.9);
-    capturedFaces.push({ angle: angleKey, image: imageData });
+    capturedFaces.push({
+        angle: angleKey,
+        image: imageData
+    });
     faceImagesInput.value = JSON.stringify(capturedFaces);
-    faceCounter.textContent = <?= json_encode($t['face_progress']) ?> + ' ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
-    clearError('face_images_json');
+    faceCounter.textContent = '<?= addslashes($t['face_progress']) ?> ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
 }
 
 async function countdownAndCapture(angleKey, angleLabel) {
     for (let sec = 3; sec >= 1; sec--) {
-        faceStatus.textContent = <?= json_encode($t['face_step_move']) ?> + ' ' + angleLabel + ' — ' + sec;
+        faceStatus.textContent = '<?= addslashes($t['face_step_move']) ?> ' + angleLabel + ' — ' + sec;
         await sleep(900);
     }
 
-    faceStatus.textContent = <?= json_encode($t['face_hold_still']) ?> + ': ' + angleLabel;
+    faceStatus.textContent = '<?= addslashes($t['face_hold_still']) ?>: ' + angleLabel;
 
     for (let i = 0; i < PHOTOS_PER_ANGLE; i++) {
         captureFrame(angleKey);
@@ -1351,7 +1417,6 @@ openFaceCameraBtn.addEventListener('click', async () => {
         faceCounter.textContent = '';
         resetAngleBadges();
         scanRunning = false;
-        clearError('face_images_json');
 
         faceStream = await navigator.mediaDevices.getUserMedia({
             video: { width: 640, height: 480, facingMode: "user" },
@@ -1366,11 +1431,11 @@ openFaceCameraBtn.addEventListener('click', async () => {
             faceCanvas.width = faceVideo.videoWidth || 640;
             faceCanvas.height = faceVideo.videoHeight || 480;
             await faceVideo.play();
-            faceStatus.textContent = <?= json_encode($t['face_scan_ready']) ?>;
-            faceCounter.textContent = <?= json_encode($t['face_samples_target']) ?>;
+            faceStatus.textContent = '<?= addslashes($t['face_scan_ready']) ?>';
+            faceCounter.textContent = '<?= addslashes($t['face_samples_target']) ?>';
         };
     } catch (err) {
-        setError('face_images_json', <?= json_encode($t['face_camera_error']) ?>);
+        faceStatus.textContent = '<?= addslashes($t['face_camera_error']) ?>';
         console.error(err);
     }
 });
@@ -1379,7 +1444,7 @@ startFaceScanBtn.addEventListener('click', async () => {
     if (scanRunning) return;
 
     if (!faceStream || !faceVideo.videoWidth) {
-        setError('face_images_json', <?= json_encode($t['camera_not_ready']) ?>);
+        faceStatus.textContent = '<?= addslashes($t['camera_not_ready']) ?>';
         return;
     }
 
@@ -1388,20 +1453,19 @@ startFaceScanBtn.addEventListener('click', async () => {
     faceImagesInput.value = '';
     faceCounter.textContent = '0/' + TOTAL_REQUIRED;
     resetAngleBadges();
-    clearError('face_images_json');
 
     for (const step of angleSteps) {
         setActiveAngle(step.key);
         await sleep(800);
         await countdownAndCapture(step.key, step.label);
         markAngleDone(step.key);
-        faceStatus.textContent = step.label + ' - ' + <?= json_encode($t['face_angle_done']) ?>;
+        faceStatus.textContent = step.label + ' - <?= addslashes($t['face_angle_done']) ?>';
         await sleep(800);
     }
 
     faceImagesInput.value = JSON.stringify(capturedFaces);
-    faceCounter.textContent = <?= json_encode($t['face_progress']) ?> + ' ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
-    faceStatus.textContent = <?= json_encode($t['face_done']) ?>;
+    faceCounter.textContent = '<?= addslashes($t['face_progress']) ?> ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
+    faceStatus.textContent = '<?= addslashes($t['face_done']) ?>';
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1414,210 +1478,31 @@ startFaceScanBtn.addEventListener('click', async () => {
     scanRunning = false;
 });
 
-/* =========================
-   Submit validation with inline errors only
-========================= */
 document.getElementById('registerForm').addEventListener('submit', function(e) {
-    let hasError = false;
-
-    const requiredFields = ['first_name','last_name','username','national_id','password','confirm_password','gender','governorate','birthdate','contact_number','email','address'];
-    requiredFields.forEach(id => {
-        const el = document.getElementById(id);
-        clearError(id);
-        if (!el || !String(el.value || '').trim()) {
-            setError(id, messages.required);
-            hasError = true;
-        }
-    });
-
-    const nid = document.getElementById('national_id').value.trim();
-    if (nid && !/^\d{14}$/.test(nid)) {
-        setError('national_id', messages.nid);
-        hasError = true;
-    }
-
-    const password = document.getElementById('password').value;
-    const confirm = document.getElementById('confirm_password').value;
-    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-
-    if (password && !passRegex.test(password)) {
-        setError('password', messages.password);
-        hasError = true;
-    }
-
-    if (password && confirm && password !== confirm) {
-        setError('confirm_password', messages.confirm);
-        hasError = true;
-    }
-
-    const email = document.getElementById('email').value.trim();
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setError('email', messages.email);
-        hasError = true;
-    }
-
-    const birthdate = document.getElementById('birthdate').value;
-    if (birthdate) {
-        const selected = new Date(birthdate);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        if (selected > today) {
-            setError('birthdate', messages.birthdate);
-            hasError = true;
-        }
-    }
-
-    const nidFile = document.getElementById('nid_photo');
-    clearError('nid_photo');
-    if (!nidFile.files || nidFile.files.length === 0) {
-        setError('nid_photo', messages.required);
-        hasError = true;
-    }
-
-    clearError('face_images_json');
     try {
         const parsed = JSON.parse(faceImagesInput.value || '[]');
         if (!Array.isArray(parsed) || parsed.length < TOTAL_REQUIRED) {
-            setError('face_images_json', messages.face);
-            hasError = true;
+            e.preventDefault();
+            alert('<?= addslashes($t['face_required']) ?>');
         }
     } catch (err) {
-        setError('face_images_json', messages.face);
-        hasError = true;
-    }
-
-    if (hasError) {
         e.preventDefault();
-        const firstError = document.querySelector('.invalid, .field-error:not(:empty)');
-        if (firstError) {
-            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        alert('<?= addslashes($t['face_required']) ?>');
     }
 });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+function togglePassword(inputId, eyeElement) {
+    const input = document.getElementById(inputId);
+    const icon = eyeElement.querySelector('i');
 
-<script>
-const nidFile = document.getElementById("nid_photo");
-const nationalIdInput = document.getElementById("national_id");
-
-nidFile.addEventListener("change", async function () {
-
-    const file = this.files[0];
-    if (!file) return;
-
-    nationalIdInput.value = "Reading ID...";
-
-    try {
-
-        const result = await Tesseract.recognize(
-            file,
-            'eng',
-            {
-                logger: m => console.log(m)
-            }
-        );
-
-        const text = result.data.text;
-
-        console.log(text);
-
-        // البحث عن أي رقم مكون من 14 رقم
-        const match = text.match(/\b\d{14}\b/);
-
-        if (match) {
-
-            document.getElementById("ocr_national_id").value = match[0];
-
-          if (!nationalIdInput.value.trim()) {
-               nationalIdInput.value = match[0];
+    if (input.type === "password") {
+        input.type = "text";
+        icon.className = "fa-regular fa-eye-slash";
+    } else {
+        input.type = "password";
+        icon.className = "fa-regular fa-eye";
+    }
 }
-
-        } else {
-
-            nationalIdInput.value = "";
-
-            alert("Could not detect National ID automatically.");
-
-        }
-
-    } catch (error) {
-
-        console.error(error);
-
-        nationalIdInput.value = "";
-
-        alert("Error reading ID image.");
-
-    }
-
-});
-</script>
-<script src="https://unpkg.com/tesseract.js@v5/dist/tesseract.min.js"></script>
-
-<script>
-const nidFile = document.getElementById("nid_photo");
-const nationalIdInput = document.getElementById("national_id");
-const ocrNationalIdInput = document.getElementById("ocr_national_id");
-
-nidFile.addEventListener("change", async function () {
-    const file = this.files[0];
-    if (!file) return;
-
-    nationalIdInput.value = "Reading ID...";
-    ocrNationalIdInput.value = "";
-
-    try {
-        const result = await Tesseract.recognize(
-            file,
-            "ara+eng",
-            { logger: m => console.log(m) }
-        );
-
-        const text = result.data.text;
-        console.log("OCR TEXT:", text);
-
-        const cleanedText = text.replace(/[^\d]/g, "");
-        const match = cleanedText.match(/\d{14}/);
-
-        if (match) {
-            ocrNationalIdInput.value = match[0];
-            nationalIdInput.value = match[0];
-        } else {
-            nationalIdInput.value = "";
-            ocrNationalIdInput.value = "";
-            alert("Could not detect National ID automatically. Please upload a clearer image.");
-        }
-
-    } catch (error) {
-        console.error(error);
-        nationalIdInput.value = "";
-        ocrNationalIdInput.value = "";
-        alert("Error reading National ID image.");
-    }
-});
 </script>
 
-<script>
-document.getElementById("registerForm").addEventListener("submit", function(e) {
-    const typedNid = document.getElementById("national_id").value.trim();
-    const ocrNid = document.getElementById("ocr_national_id").value.trim();
-    const errorBox = document.getElementById("national_id_match_error");
-
-    errorBox.textContent = "";
-
-    if (!ocrNid) {
-        e.preventDefault();
-        errorBox.textContent = "Please upload a clear National ID photo so we can verify it.";
-        return;
-    }
-
-    if (typedNid !== ocrNid) {
-        e.preventDefault();
-        errorBox.textContent = "National ID does not match the ID detected from the uploaded card.";
-        return;
-    }
-});
-</script>
 </body>
 </html>
