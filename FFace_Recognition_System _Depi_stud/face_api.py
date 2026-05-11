@@ -4,7 +4,7 @@ import re
 import pickle
 import base64
 from datetime import datetime
-
+import os
 import boto3
 import cv2
 import numpy as np
@@ -31,11 +31,34 @@ s3_client = None
 if S3_BUCKET:
     s3_client = boto3.client("s3", region_name=AWS_REGION)
 
+def sync_representations_from_s3():
+    """
+    Download the latest representations.pkl from S3 into the local db_folder
+    when the Face API starts.
+    """
+    bucket = os.getenv("FACE_S3_BUCKET", "cairo-hospital-face-images-137068224200")
+    pkl_key = os.getenv("FACE_PKL_KEY", "faces/representations.pkl")
 
-def safe_username(username: str) -> str:
-    username = username.strip().lower()
-    username = re.sub(r"[^a-zA-Z0-9_.-]", "_", username)
-    return username or "unknown"
+    local_pkl_path = os.getenv(
+        "LOCAL_PKL_PATH",
+        "/app/build_database/db_folder/representations.pkl"
+    )
+
+    try:
+        os.makedirs(os.path.dirname(local_pkl_path), exist_ok=True)
+
+        s3 = boto3.client("s3")
+        s3.download_file(bucket, pkl_key, local_pkl_path)
+
+        print(f"[PKL SYNC] Downloaded latest PKL from s3://{bucket}/{pkl_key}")
+        print(f"[PKL SYNC] Local PKL updated: {local_pkl_path}")
+
+        return True
+
+    except Exception as e:
+        print(f"[PKL SYNC ERROR] Could not download representations.pkl from S3: {e}")
+        return False
+
 
 
 def decode_base64_image(data_url: str):
@@ -143,6 +166,7 @@ def cosine_distance(a, b):
     return 1 - np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
+
 @app.route("/face/health", methods=["GET"])
 def health():
     reps = download_representations()
@@ -158,6 +182,11 @@ def health():
 @app.route("/health", methods=["GET"])
 def root_health():
     return health()
+
+def safe_username(username: str) -> str:
+    username = str(username or "").strip()
+    username = re.sub(r"[^A-Za-z0-9_\-\.]", "_", username)
+    return username
 
 @app.route("/face/register_face", methods=["POST"])
 def register_face():
@@ -259,94 +288,283 @@ def delete_s3_prefix(prefix: str):
             continue
 
         delete_payload = {
-            "Objects": [{"Key": obj["Key"]} for obj in objects]
+            "Objects": [{"Key": obj["Key"]} for obj in objects],
+            "Quiet": True
         }
-        s3_client.delete_objects(Bucket=S3_BUCKET, Delete=delete_payload)
-        deleted_count += len(objects)
+
+        response = s3_client.delete_objects(
+            Bucket=S3_BUCKET,
+            Delete=delete_payload
+        )
+
+        deleted_count += len(response.get("Deleted", []))
 
     return deleted_count
 
 
-@app.route("/face/delete_user", methods=["POST"])
-def delete_face_user():
+def delete_s3_keys(keys):
+    """Delete exact S3 object keys."""
+    if not s3_client or not keys:
+        return 0
+
+    keys = list(set(keys))
+    deleted_count = 0
+
+    for i in range(0, len(keys), 1000):
+        batch = keys[i:i + 1000]
+
+        response = s3_client.delete_objects(
+            Bucket=S3_BUCKET,
+            Delete={
+                "Objects": [{"Key": key} for key in batch],
+                "Quiet": True
+            }
+        )
+
+        deleted_count += len(response.get("Deleted", []))
+
+    return deleted_count
+
+
+def delete_user_images_from_s3(username, bucket=None, prefix="faces"):
     """
-    Expected JSON:
-    {
-      "username": "patient_username",
-      "patient_id": 123   // optional
-    }
+    Delete S3 images for a username.
 
-    Deletes:
-    1) all S3 face images under faces/<username>/
-    2) this user's records from faces/representations.pkl
+    It deletes:
+    1. faces/<username>/
+    2. faces/<username lowercase>/
+    3. Any key under faces/ where the first folder equals username case-insensitive.
     """
-    data = request.get_json(silent=True) or {}
-    username_raw = str(data.get("username", "")).strip()
-    patient_id = data.get("patient_id")
-
-    if not username_raw and patient_id is None:
-        return jsonify({
-            "success": False,
-            "error": "username or patient_id is required"
-        }), 400
-
     if not s3_client:
-        return jsonify({
-            "success": False,
-            "error": "S3 is not configured. Add FACE_S3_BUCKET environment variable."
-        }), 500
+        return 0, []
 
-    username = safe_username(username_raw) if username_raw else ""
+    bucket = bucket or S3_BUCKET
+    prefix = (prefix or S3_PREFIX).strip("/")
 
-    representations = download_representations()
-    before_count = len(representations)
+    raw_username = str(username).strip()
+    lower_username = raw_username.lower()
 
-    def belongs_to_user(record):
-        same_username = bool(username) and record.get("identity") == username
-        same_patient_id = patient_id is not None and str(record.get("patient_id")) == str(patient_id)
+    keys_to_delete = set()
+    paginator = s3_client.get_paginator("list_objects_v2")
+
+    candidate_prefixes = [
+        f"{prefix}/{raw_username}/",
+        f"{prefix}/{lower_username}/",
+    ]
+
+    for folder_prefix in candidate_prefixes:
+        for page in paginator.paginate(Bucket=bucket, Prefix=folder_prefix):
+            for obj in page.get("Contents", []):
+                keys_to_delete.add(obj["Key"])
+
+    # Fallback scan: faces/<folder_name>/...
+    for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix}/"):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            parts = key.split("/")
+
+            if len(parts) >= 2:
+                folder_name = parts[1].strip()
+                if folder_name == raw_username or folder_name.lower() == lower_username:
+                    keys_to_delete.add(key)
+
+    keys_to_delete = list(keys_to_delete)
+    deleted_count = delete_s3_keys(keys_to_delete)
+
+    return deleted_count, keys_to_delete
+
+
+def record_belongs_to_user(record, username, patient_id=None):
+    """
+    Supports both old pkl structure:
+        ['username', embedding]
+    and new pkl structure:
+        {'identity': username, 'patient_id': ..., 'image_key': ..., 'embedding': ...}
+    """
+    username = str(username).strip()
+    username_lower = username.lower()
+
+    if isinstance(record, dict):
+        identity = str(record.get("identity", "")).strip()
+        record_patient_id = record.get("patient_id")
+
+        same_username = identity.lower() == username_lower
+        same_patient_id = (
+            patient_id is not None
+            and record_patient_id is not None
+            and str(record_patient_id) == str(patient_id)
+        )
+
         return same_username or same_patient_id
 
-    user_records = [r for r in representations if belongs_to_user(r)]
+    if isinstance(record, (list, tuple)) and len(record) > 0:
+        identity = str(record[0]).strip()
+        return identity.lower() == username_lower
 
-    image_keys = set()
-    for record in user_records:
-        key = record.get("image_key")
-        if key:
-            image_keys.add(key)
+    return False
 
-    # Delete exact keys found in representations.pkl
-    deleted_images = 0
-    if image_keys:
-        keys = list(image_keys)
-        for i in range(0, len(keys), 1000):
-            batch = keys[i:i + 1000]
-            s3_client.delete_objects(
-                Bucket=S3_BUCKET,
-                Delete={"Objects": [{"Key": key} for key in batch]}
-            )
-            deleted_images += len(batch)
 
-    # Also delete anything still under faces/<username>/, useful if pkl missed old images
-    deleted_by_prefix = 0
-    if username:
-        deleted_by_prefix = delete_s3_prefix(f"{S3_PREFIX}/{username}/")
+def get_record_image_key(record):
+    if isinstance(record, dict):
+        return record.get("image_key")
+    return None
 
-    remaining = [r for r in representations if not belongs_to_user(r)]
-    upload_representations(remaining)
 
-    return jsonify({
-        "success": True,
-        "username": username,
-        "patient_id": patient_id,
-        "representations_before": before_count,
-        "representations_after": len(remaining),
-        "representations_removed": before_count - len(remaining),
-        "images_deleted_from_pkl_keys": deleted_images,
-        "images_deleted_by_prefix": deleted_by_prefix,
-        "representations_key": REPRESENTATIONS_KEY
-    })
 
-@app.route("/face/verify_face", methods=["POST"])
+@app.route("/face/delete_user", methods=["POST"])
+def delete_face_user():
+    print("[DELETE USER] endpoint reached", flush=True)
+    import traceback
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        username = safe_username(data.get("username", ""))
+        patient_id = data.get("patient_id")
+        bucket = data.get("bucket") or S3_BUCKET
+        prefix = (data.get("prefix") or S3_PREFIX).strip("/")
+
+        if not username and patient_id is None:
+            return jsonify({
+                "success": False,
+                "error": "username or patient_id is required"
+            }), 400
+
+        if not s3_client:
+            return jsonify({
+                "success": False,
+                "error": "S3 is not configured"
+            }), 500
+
+        representations = download_representations()
+        before_count = len(representations)
+
+        def belongs_to_user(record):
+            username_lower = username.lower()
+
+            # New dict format
+            if isinstance(record, dict):
+                identity = str(record.get("identity", "")).strip().lower()
+                record_patient_id = record.get("patient_id")
+
+                if username and identity == username_lower:
+                    return True
+
+                if patient_id is not None and record_patient_id is not None:
+                    return str(record_patient_id) == str(patient_id)
+
+                return False
+
+            # Old list format: ['username', embedding]
+            if isinstance(record, (list, tuple)) and len(record) > 0:
+                identity = str(record[0]).strip().lower()
+                return username and identity == username_lower
+
+            return False
+
+        user_records = [r for r in representations if belongs_to_user(r)]
+
+        image_keys = set()
+
+        for record in user_records:
+            if isinstance(record, dict):
+                key = record.get("image_key")
+                if key:
+                    image_keys.add(key)
+
+        # Delete exact image keys from pkl if available
+        deleted_images_from_pkl_keys = 0
+
+        if image_keys:
+            keys = list(image_keys)
+
+            for i in range(0, len(keys), 1000):
+                batch = keys[i:i + 1000]
+                response = s3_client.delete_objects(
+                    Bucket=bucket,
+                    Delete={
+                        "Objects": [{"Key": key} for key in batch],
+                        "Quiet": True
+                    }
+                )
+                deleted_images_from_pkl_keys += len(response.get("Deleted", []))
+
+        # Delete S3 folder faces/<username>/
+        deleted_s3_keys = []
+        images_deleted_by_prefix = 0
+
+        if username:
+            candidate_prefixes = [
+                f"{prefix}/{username}/",
+                f"{prefix}/{username.lower()}/"
+            ]
+
+            for user_prefix in candidate_prefixes:
+                paginator = s3_client.get_paginator("list_objects_v2")
+
+                for page in paginator.paginate(Bucket=bucket, Prefix=user_prefix):
+                    objects = page.get("Contents", [])
+
+                    if not objects:
+                        continue
+
+                    keys = [obj["Key"] for obj in objects]
+                    deleted_s3_keys.extend(keys)
+
+                    for i in range(0, len(keys), 1000):
+                        batch = keys[i:i + 1000]
+                        response = s3_client.delete_objects(
+                            Bucket=bucket,
+                            Delete={
+                                "Objects": [{"Key": key} for key in batch],
+                                "Quiet": True
+                            }
+                        )
+                        images_deleted_by_prefix += len(response.get("Deleted", []))
+
+        # Remove from pkl
+        remaining = [r for r in representations if not belongs_to_user(r)]
+        upload_representations(remaining)
+
+        # Update local pkl too
+        local_pkl_path = os.getenv(
+            "LOCAL_PKL_PATH",
+            "/app/build_database/db_folder/representations.pkl"
+        )
+
+        local_pkl_updated = False
+
+        try:
+            os.makedirs(os.path.dirname(local_pkl_path), exist_ok=True)
+            with open(local_pkl_path, "wb") as f:
+                pickle.dump(remaining, f)
+            local_pkl_updated = True
+        except Exception as e:
+            print(f"[PKL LOCAL UPDATE ERROR] {e}")
+
+        return jsonify({
+            "success": True,
+            "username": username,
+            "patient_id": patient_id,
+            "representations_before": before_count,
+            "representations_after": len(remaining),
+            "representations_removed": before_count - len(remaining),
+            "images_deleted_from_pkl_keys": deleted_images_from_pkl_keys,
+            "images_deleted_by_prefix": images_deleted_by_prefix,
+            "deleted_s3_keys": deleted_s3_keys,
+            "local_pkl_updated": local_pkl_updated,
+            "representations_key": REPRESENTATIONS_KEY
+        })
+
+    except Exception as e:
+        print("[DELETE USER ERROR]")
+        print(traceback.format_exc())
+
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
 def verify_face():
     """
     Expected JSON:
@@ -410,7 +628,7 @@ def verify_face():
     "threshold": float(THRESHOLD),
     "image_key": str(best_match.get("image_key")) if best_match else None
 })
-
+sync_representations_from_s3()
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5001"))
     app.run(host="0.0.0.0", port=port)
