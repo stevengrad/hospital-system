@@ -205,7 +205,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login'])) {
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars($lang) ?>" dir="<?= htmlspecialchars($dir) ?>">
 <head>
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+<link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= htmlspecialchars($T['app_name'] ?? 'Hospital Login') ?></title>
@@ -304,8 +304,28 @@ body{
 }
 .lang-toggle a.active,.lang-toggle a:hover{background:#eaf4ff;border-color:#84bdf0;color:#0b65b8}
 .brand-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:18px;margin-bottom:12px;width:100%;text-align:center;padding-inline:96px}
-.brand-logo{width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#e8f4ff,#effff5);border:1px solid #d8eafe;color:#0b78d0;font-size:22px;box-shadow:0 8px 22px rgba(11,120,208,.10);flex:0 0 46px}
-.brand-badge{display:none}
+.brand-logo{
+    width:46px;
+    height:46px;
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(135deg,#e8f4ff,#effff5);
+    border:1px solid #d8eafe;
+    color:#0b78d0;
+    font-size:22px;
+    box-shadow:0 8px 22px rgba(11,120,208,.10);
+    flex:0 0 46px;
+}
+
+.brand-logo img{
+    width:42px;
+    height:42px;
+    object-fit:contain;
+    display:block;
+    border-radius:12px;
+}
 .brand-text h1{font-size:24px;font-weight:900;color:#116d35;line-height:1.2;text-align:center;white-space:nowrap}
 .login-title{text-align:center;font-size:28px;line-height:1.15;font-weight:900;color:#06213b;margin-top:8px;margin-bottom:10px}
 .subtitle{text-align:center;color:var(--muted);font-size:14.5px;line-height:1.7;margin-bottom:22px}
@@ -408,7 +428,9 @@ body{
         </div>
 
         <div class="brand-wrap">
-            <div class="brand-logo"><i class="fa-solid fa-hospital-user"></i></div>
+            <div class="brand-logo">
+               <img src="assets/Cairo_hospitals1.png" alt="Cairo Hospitals">
+            </div>
             <div class="brand-text">
                 <h1><?= htmlspecialchars($T['app_name'] ?? 'Cairo Hospitals') ?></h1>
             </div>

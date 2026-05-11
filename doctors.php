@@ -82,6 +82,7 @@ function lang_link_doctors($code) {
     <title><?= htmlspecialchars($text['page_title']) ?> - <?= htmlspecialchars($text['app_name']) ?></title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
 
     <style>
         * {
@@ -444,6 +445,27 @@ function lang_link_doctors($code) {
             font-size: 13px;
             margin-top: 18px;
         }
+        .logo-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid rgba(255,255,255,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+}
+
+.logo-icon img {
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    border-radius: 14px;
+    display: block;
+}
 
         @media (max-width: 1100px) {
             .hero {
@@ -496,8 +518,8 @@ function lang_link_doctors($code) {
 
     <header class="topbar glass">
         <div class="brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-user-doctor"></i>
+            <div class="logo-icon">
+                 <img src="assets/Cairo_hospitals1.png?v=2" alt="Cairo Hospitals">
             </div>
             <div class="brand-text">
                 <h1><?= htmlspecialchars($text['app_name']) ?></h1>

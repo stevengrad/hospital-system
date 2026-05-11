@@ -1,4 +1,10 @@
 *.pt
 *.pkl
 .env
+*.env
+notepad.env
+
 __pycache__/
+*.pyc
+
+.vscode/
