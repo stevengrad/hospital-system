@@ -2,12 +2,12 @@
 session_start();
 include('db_connect.php');
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 require_once __DIR__ . '/PHPMailer/src/Exception.php';
 require_once __DIR__ . '/PHPMailer/src/PHPMailer.php';
 require_once __DIR__ . '/PHPMailer/src/SMTP.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 /* =========================
    Language
@@ -15,6 +15,7 @@ use PHPMailer\PHPMailer\Exception;
 if (isset($_GET['lang'])) {
     $_SESSION['lang'] = ($_GET['lang'] === 'ar') ? 'ar' : 'en';
 }
+
 $lang = $_SESSION['lang'] ?? 'en';
 $dir  = ($lang === 'ar') ? 'rtl' : 'ltr';
 
@@ -24,96 +25,74 @@ $text = [
         'app_name'          => 'Cairo Hospitals',
         'hero_badge'        => 'Password Recovery',
         'hero_title'        => 'Recover your account securely',
-        'hero_desc'         => 'Enter your email address to receive a one-time verification code, then set a new password safely.',
+        'hero_desc'         => 'Enter your username to receive a one-time verification code on your registered email, then set a new password safely.',
         'card_subtitle'     => 'Follow the steps below to reset your password.',
-        'email'             => 'Email Address',
-        'email_placeholder' => 'Enter your email address',
+        'username'          => 'Username',
+        'username_placeholder' => 'Enter your username',
         'send_code'         => 'Send OTP Code',
-        'otp'               => 'Verification Code',
-        'otp_placeholder'   => 'Enter the code sent to your email',
-        'verify_code'       => 'Verify Code',
-        'new_password'      => 'New Password',
-        'confirm_password'  => 'Confirm Password',
-        'reset_password'    => 'Save New Password',
         'back_login'        => 'Back to Login',
-        'step_1'            => 'Step 1: Verify Email',
-        'step_2'            => 'Step 2: Verify OTP',
-        'step_3'            => 'Step 3: Set New Password',
-        'email_not_found'   => 'This email is not registered.',
-        'code_sent'         => 'OTP code has been sent to your email.',
-        'code_invalid'      => 'The code you entered is incorrect.',
-        'code_verified'     => 'Code verified successfully. You can now set a new password.',
-        'password_mismatch' => 'Passwords do not match.',
-        'password_invalid'  => 'Password must be at least 8 characters and contain uppercase, lowercase, number, and special character.',
-        'password_updated'  => 'Password updated successfully. You can now log in.',
+        'step_1'            => 'Step 1: Verify Username',
+        'username_not_found'=> 'This username is not registered.',
+        'no_email'          => 'This username does not have a registered email.',
         'email_send_fail'   => 'Could not send OTP email. Please try again.',
-        'show_password'     => 'Show password',
-        'hide_password'     => 'Hide password',
         'email_subject'     => 'Your Cairo Hospitals Password Reset Code',
         'email_greeting'    => 'Password Reset Request',
         'email_body_1'      => 'We received a request to reset your password.',
         'email_body_2'      => 'Use the following OTP code to continue:',
-        'email_note'        => 'This code expires after 10 minutes. If you did not request this, please ignore this email.',
+        'email_note'        => 'This code expires after 5 minutes. If you did not request this, please ignore this email.',
     ],
     'ar' => [
         'page_title'        => 'نسيت كلمة المرور',
         'app_name'          => 'مستشفيات القاهرة',
         'hero_badge'        => 'استعادة كلمة المرور',
         'hero_title'        => 'استعد الوصول إلى حسابك بأمان',
-        'hero_desc'         => 'أدخل بريدك الإلكتروني لاستلام كود تحقق مؤقت، ثم قم بتعيين كلمة مرور جديدة بشكل آمن.',
+        'hero_desc'         => 'أدخل اسم المستخدم ليتم إرسال كود تحقق مؤقت إلى البريد الإلكتروني المسجل، ثم قم بتعيين كلمة مرور جديدة بأمان.',
         'card_subtitle'     => 'اتبع الخطوات التالية لإعادة تعيين كلمة المرور.',
-        'email'             => 'البريد الإلكتروني',
-        'email_placeholder' => 'أدخل بريدك الإلكتروني',
+        'username'          => 'اسم المستخدم',
+        'username_placeholder' => 'أدخل اسم المستخدم',
         'send_code'         => 'إرسال كود التحقق',
-        'otp'               => 'كود التحقق',
-        'otp_placeholder'   => 'أدخل الكود المرسل إلى بريدك الإلكتروني',
-        'verify_code'       => 'تأكيد الكود',
-        'new_password'      => 'كلمة المرور الجديدة',
-        'confirm_password'  => 'تأكيد كلمة المرور',
-        'reset_password'    => 'حفظ كلمة المرور الجديدة',
         'back_login'        => 'العودة لتسجيل الدخول',
-        'step_1'            => 'الخطوة 1: التحقق من البريد الإلكتروني',
-        'step_2'            => 'الخطوة 2: التحقق من الكود',
-        'step_3'            => 'الخطوة 3: تعيين كلمة مرور جديدة',
-        'email_not_found'   => 'هذا البريد الإلكتروني غير مسجل.',
-        'code_sent'         => 'تم إرسال كود التحقق إلى بريدك الإلكتروني.',
-        'code_invalid'      => 'الكود الذي أدخلته غير صحيح.',
-        'code_verified'     => 'تم التحقق من الكود بنجاح. يمكنك الآن تعيين كلمة مرور جديدة.',
-        'password_mismatch' => 'كلمتا المرور غير متطابقتين.',
-        'password_invalid'  => 'يجب أن تكون كلمة المرور 8 أحرف على الأقل وتحتوي على حرف كبير وصغير ورقم ورمز خاص.',
-        'password_updated'  => 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول.',
+        'step_1'            => 'الخطوة 1: التحقق من اسم المستخدم',
+        'username_not_found'=> 'اسم المستخدم غير مسجل.',
+        'no_email'          => 'لا يوجد بريد إلكتروني مسجل لهذا المستخدم.',
         'email_send_fail'   => 'تعذر إرسال كود التحقق. حاول مرة أخرى.',
-        'show_password'     => 'إظهار كلمة المرور',
-        'hide_password'     => 'إخفاء كلمة المرور',
         'email_subject'     => 'كود إعادة تعيين كلمة المرور - مستشفيات القاهرة',
         'email_greeting'    => 'طلب إعادة تعيين كلمة المرور',
         'email_body_1'      => 'لقد استلمنا طلبًا لإعادة تعيين كلمة المرور الخاصة بك.',
         'email_body_2'      => 'استخدم كود التحقق التالي لإكمال العملية:',
-        'email_note'        => 'تنتهي صلاحية هذا الكود خلال 10 دقائق. إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.',
+        'email_note'        => 'تنتهي صلاحية هذا الكود خلال 5 دقائق. إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.',
     ]
 ];
 
 $t = $text[$lang];
 $message = '';
 $messageType = '';
-$step = 1;
+$username = '';
 
 /* =========================
    Helper: send OTP email
 ========================= */
-function sendResetOtpEmailSMTP($toEmail, $otpCode, $lang, $text) {
-    $smtpUser = 'cairohospitals0@gmail.com';
-    $smtpPass = 'nyqt rjbf pyoo qsfx';
-    $fromName = 'Cairo Hospitals';
-
-    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass)) {
-        return ['ok' => false, 'reason' => 'smtp_not_configured'];
-    }
-
+function sendResetOtpEmailSMTP($toEmail, $otp, $lang, $text) {
     $mail = new PHPMailer(true);
 
     try {
+        /*
+            Best: put these in docker-compose.yml under php environment:
+            SMTP_USER: cairohospitals0@gmail.com
+            SMTP_PASS: your_gmail_app_password
+        */
+        $smtpUser = getenv("SMTP_USER") ?: "cairohospitals0@gmail.com";
+        $smtpPass = getenv("SMTP_PASS") ?: "PUT_YOUR_WORKING_GMAIL_APP_PASSWORD_HERE";
+
+        if (empty($smtpUser) || empty($smtpPass) || $smtpPass === "PUT_YOUR_WORKING_GMAIL_APP_PASSWORD_HERE") {
+            return [
+                "ok" => false,
+                "reason" => "SMTP credentials are not configured."
+            ];
+        }
+
         $mail->isSMTP();
+
         $mail->SMTPOptions = [
             'ssl' => [
                 'verify_peer' => false,
@@ -121,223 +100,157 @@ function sendResetOtpEmailSMTP($toEmail, $otpCode, $lang, $text) {
                 'allow_self_signed' => true,
             ],
         ];
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $smtpUser;
-        $mail->Password   = $smtpPass;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        $mail->CharSet    = 'UTF-8';
 
-        $mail->setFrom($smtpUser, $fromName);
+        $mail->Host = "smtp.gmail.com";
+        $mail->SMTPAuth = true;
+        $mail->Username = $smtpUser;
+        $mail->Password = $smtpPass;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        $mail->CharSet = "UTF-8";
+        $mail->setFrom($smtpUser, "Cairo Hospitals");
         $mail->addAddress($toEmail);
 
         $mail->isHTML(true);
-        $mail->Subject = $text[$lang]['email_subject'];
+        $mail->Subject = ($lang === "ar")
+            ? "رمز إعادة تعيين كلمة المرور"
+            : "Password Reset OTP";
+
+        $safeOtp = htmlspecialchars($otp, ENT_QUOTES, "UTF-8");
 
         $mail->Body = '
-        <html>
-        <body style="font-family:Arial,sans-serif;line-height:1.9;color:#0f172a;">
-            <h2 style="color:#116ad0;">' . htmlspecialchars($text[$lang]['email_greeting']) . '</h2>
-            <p>' . htmlspecialchars($text[$lang]['email_body_1']) . '</p>
-            <p>' . htmlspecialchars($text[$lang]['email_body_2']) . '</p>
-            <div style="background:#f8fafc;border:1px solid #dbe4ee;border-radius:14px;padding:18px;text-align:center;margin:18px 0;">
-                <div style="font-size:13px;color:#64748b;margin-bottom:6px;">OTP Code</div>
-                <div style="font-size:34px;font-weight:800;letter-spacing:4px;color:#dc2626;">' . htmlspecialchars($otpCode) . '</div>
+        <div style="font-family:Arial,sans-serif;background:#f8fafc;padding:30px;">
+            <div style="max-width:520px;margin:auto;background:#ffffff;border-radius:18px;padding:28px;border:1px solid #e5e7eb;">
+                <h2 style="color:#146c33;text-align:center;">Cairo Hospitals</h2>
+
+                <p style="font-size:16px;color:#334155;text-align:center;">
+                    ' . htmlspecialchars($text[$lang]['email_body_1'], ENT_QUOTES, "UTF-8") . '
+                </p>
+
+                <p style="font-size:16px;color:#334155;text-align:center;">
+                    ' . htmlspecialchars($text[$lang]['email_body_2'], ENT_QUOTES, "UTF-8") . '
+                </p>
+
+                <div style="font-size:34px;font-weight:bold;letter-spacing:8px;text-align:center;color:#0f62b8;background:#eef6ff;border-radius:14px;padding:18px;margin:24px 0;">
+                    ' . $safeOtp . '
+                </div>
+
+                <p style="color:#dc2626;font-weight:bold;text-align:center;">
+                    ' . htmlspecialchars($text[$lang]['email_note'], ENT_QUOTES, "UTF-8") . '
+                </p>
             </div>
-            <p>' . htmlspecialchars($text[$lang]['email_note']) . '</p>
-        </body>
-        </html>';
+        </div>';
 
         $mail->AltBody =
             $text[$lang]['email_greeting'] . "\n\n" .
             $text[$lang]['email_body_1'] . "\n" .
             $text[$lang]['email_body_2'] . "\n\n" .
-            'OTP Code: ' . $otpCode . "\n\n" .
+            "OTP Code: " . $otp . "\n\n" .
             $text[$lang]['email_note'];
 
         $mail->send();
-        return ['ok' => true];
+
+        return [
+            "ok" => true,
+            "reason" => ""
+        ];
+
     } catch (Exception $e) {
-        return ['ok' => false, 'reason' => $mail->ErrorInfo];
+        return [
+            "ok" => false,
+            "reason" => $mail->ErrorInfo
+        ];
     }
 }
 
 /* =========================
-   Determine current step
-========================= */
-if (isset($_SESSION['forgot_verified']) && $_SESSION['forgot_verified'] === true) {
-    $step = 3;
-} elseif (isset($_SESSION['forgot_email'])) {
-    $step = 2;
-}
-
-/* =========================
-   Step 1: Send OTP
+   Step 1: Send OTP by username
 ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_code'])) {
-    $email = trim($_POST['email'] ?? '');
+    $username = trim($_POST["username"] ?? "");
 
-    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $message = $t['email_not_found'];
-        $messageType = 'error';
-        $step = 1;
+    if ($username === "") {
+        $message = ($lang === 'ar') ? "يرجى إدخال اسم المستخدم." : "Please enter your username.";
+        $messageType = "error";
     } else {
-        $stmt = $conn->prepare("SELECT id, email, national_id FROM registration WHERE email = ? LIMIT 1");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $userRow = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$userRow) {
-            $message = $t['email_not_found'];
-            $messageType = 'error';
-            $step = 1;
-        } else {
-            $otp = (string)random_int(100000, 999999);
-
-            $_SESSION['forgot_email'] = $email;
-            $_SESSION['forgot_otp'] = $otp;
-            $_SESSION['forgot_national_id'] = $userRow['national_id'] ?? '';
-            $_SESSION['forgot_otp_expires'] = time() + 600;
-            unset($_SESSION['forgot_verified']);
-
-            $mailResult = sendResetOtpEmailSMTP($email, $otp, $lang, $text);
-
-            if ($mailResult['ok']) {
-                $message = $t['code_sent'];
-                $messageType = 'success';
-                $step = 2;
-            } else {
-                $message = $t['email_send_fail'];
-                $messageType = 'error';
-                $step = 1;
-            }
-        }
-    }
-}
-
-/* =========================
-   Step 2: Verify OTP
-========================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_code'])) {
-    $enteredOtp = trim($_POST['otp'] ?? '');
-
-    if (
-        !isset($_SESSION['forgot_otp']) ||
-        !isset($_SESSION['forgot_otp_expires']) ||
-        time() > (int)$_SESSION['forgot_otp_expires']
-    ) {
-        $message = $t['code_invalid'];
-        $messageType = 'error';
-        $step = 1;
-        unset($_SESSION['forgot_email'], $_SESSION['forgot_otp'], $_SESSION['forgot_otp_expires'], $_SESSION['forgot_verified'], $_SESSION['forgot_national_id']);
-    } elseif ($enteredOtp !== (string)$_SESSION['forgot_otp']) {
-        $message = $t['code_invalid'];
-        $messageType = 'error';
-        $step = 2;
-    } else {
-        $_SESSION['forgot_verified'] = true;
-        $message = $t['code_verified'];
-        $messageType = 'success';
-        $step = 3;
-    }
-}
-
-/* =========================
-   Step 3: Reset Password
-========================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
-    $password = trim($_POST['password'] ?? '');
-    $confirm  = trim($_POST['confirm_password'] ?? '');
-
-    $validPassword = preg_match('/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/', $password);
-
-    if (!isset($_SESSION['forgot_verified']) || $_SESSION['forgot_verified'] !== true || empty($_SESSION['forgot_email'])) {
-        $message = $t['code_invalid'];
-        $messageType = 'error';
-        $step = 1;
-
-    } elseif ($password !== $confirm) {
-        $message = $t['password_mismatch'];
-        $messageType = 'error';
-        $step = 3;
-
-    } elseif (!$validPassword) {
-        $message = $t['password_invalid'];
-        $messageType = 'error';
-        $step = 3;
-
-    } else {
-        $hashed = password_hash($password, PASSWORD_DEFAULT);
-        $email  = $_SESSION['forgot_email'];
-
-        // 1) get the exact user from registration
-        $stmtUser = $conn->prepare("
-            SELECT id, username, national_id
+        $stmt = $conn->prepare("
+            SELECT id, username, email
             FROM registration
-            WHERE email = ?
+            WHERE username = ?
             LIMIT 1
         ");
-        $stmtUser->bind_param("s", $email);
-        $stmtUser->execute();
-        $resUser = $stmtUser->get_result();
-        $userRow = $resUser->fetch_assoc();
-        $stmtUser->close();
 
-        if (!$userRow) {
-            $message = $t['email_not_found'];
-            $messageType = 'error';
-            $step = 1;
+        if (!$stmt) {
+            $message = ($lang === 'ar') ? "خطأ في قاعدة البيانات." : "Database error.";
+            $messageType = "error";
         } else {
-            $username   = trim((string)($userRow['username'] ?? ''));
-            $nationalId = trim((string)($userRow['national_id'] ?? ''));
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $user = $result->fetch_assoc();
+            $stmt->close();
 
-            // 2) update registration
-            $stmt1 = $conn->prepare("
-                UPDATE registration
-                SET password = ?
-                WHERE id = ?
-            ");
-            $stmt1->bind_param("si", $hashed, $userRow['id']);
-            $stmt1->execute();
-            $stmt1->close();
+            if (!$user) {
+                $message = $t['username_not_found'];
+                $messageType = "error";
+            } else {
+                $reset_username = trim((string)$user["username"]);
+                $reset_email = trim((string)$user["email"]);
 
-            // 3) update login by username first
-            $stmt2 = $conn->prepare("
-                UPDATE login
-                SET password = ?
-                WHERE username = ?
-            ");
-            $stmt2->bind_param("ss", $hashed, $username);
-            $stmt2->execute();
-            $affectedByUsername = $stmt2->affected_rows;
-            $stmt2->close();
+                if ($reset_email === "") {
+                    $message = $t['no_email'];
+                    $messageType = "error";
+                } else {
+                    unset($_SESSION['forgot_verified']);
 
-            // 4) if not found by username, update by national_id
-            if ($affectedByUsername <= 0 && $nationalId !== '') {
-                $stmt3 = $conn->prepare("
-                    UPDATE login
-                    SET password = ?
-                    WHERE national_id = ?
-                ");
-                $stmt3->bind_param("ss", $hashed, $nationalId);
-                $stmt3->execute();
-                $stmt3->close();
+                    $otp = (string) random_int(100000, 999999);
+                    $expires_at = date("Y-m-d H:i:s", time() + 300); // 5 minutes
+
+                    /*
+                        These sessions are used by verify_otp.php and reset_password.php
+                    */
+                    $_SESSION["reset_email"] = $reset_email;
+                    $_SESSION["reset_username"] = $reset_username;
+
+                    /*
+                        Also keep these for compatibility if any old logic still reads them
+                    */
+                    $_SESSION["forgot_email"] = $reset_email;
+                    $_SESSION["forgot_username"] = $reset_username;
+                    $_SESSION["forgot_otp"] = $otp;
+                    $_SESSION["forgot_otp_expires"] = time() + 300;
+
+                    $deleteOld = $conn->prepare("DELETE FROM password_resets WHERE email = ?");
+                    $deleteOld->bind_param("s", $reset_email);
+                    $deleteOld->execute();
+                    $deleteOld->close();
+
+                    $insertOtp = $conn->prepare("
+                        INSERT INTO password_resets (email, otp, expires_at, verified)
+                        VALUES (?, ?, ?, 0)
+                    ");
+
+                    if (!$insertOtp) {
+                        $message = ($lang === 'ar') ? "خطأ في حفظ كود التحقق." : "Could not save OTP code.";
+                        $messageType = "error";
+                    } else {
+                        $insertOtp->bind_param("sss", $reset_email, $otp, $expires_at);
+                        $insertOtp->execute();
+                        $insertOtp->close();
+
+                        $mailResult = sendResetOtpEmailSMTP($reset_email, $otp, $lang, $text);
+
+                        if ($mailResult["ok"]) {
+                            header("Location: verify_otp.php");
+                            exit();
+                        } else {
+                            $message = $t['email_send_fail'] . " Reason: " . ($mailResult["reason"] ?? "Unknown error");
+                            $messageType = "error";
+                        }
+                    }
+                }
             }
-
-            unset(
-                $_SESSION['forgot_email'],
-                $_SESSION['forgot_otp'],
-                $_SESSION['forgot_otp_expires'],
-                $_SESSION['forgot_verified'],
-                $_SESSION['forgot_national_id']
-            );
-
-            $message = $t['password_updated'];
-            $messageType = 'success';
-            $step = 1;
         }
     }
 }
@@ -348,6 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= htmlspecialchars($t['page_title']) ?></title>
+<link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png?v=2">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
@@ -504,13 +418,21 @@ body{
     width:56px;
     height:56px;
     border-radius:18px;
-    background:linear-gradient(135deg, #e8f3ff, #f0fff5);
+    background:#ffffff;
     border:1px solid #dbeafe;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:28px;
     box-shadow:0 8px 24px rgba(31,143,255,0.12);
+    overflow:hidden;
+}
+
+.brand-badge img{
+    width:58px;
+    height:58px;
+    object-fit:contain;
+    display:block;
+    border-radius:14px;
 }
 
 .brand-text h1{
@@ -616,24 +538,6 @@ body{
     color:#8a9aae;
 }
 
-.toggle-eye{
-    position:absolute;
-    top:50%;
-    transform:translateY(-50%);
-    <?= ($dir === 'rtl') ? 'left:14px;' : 'right:14px;' ?>
-    width:22px;
-    height:22px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    color:#6b7c93;
-    user-select:none;
-}
-.toggle-eye i{
-    font-size:18px;
-}
-
 .btn-submit{
     width:100%;
     border:none;
@@ -685,6 +589,7 @@ body{
 }
 </style>
 </head>
+
 <body>
 <div class="page-shell">
     <section class="hero-panel">
@@ -700,8 +605,8 @@ body{
             <div class="point-title"><?= ($lang === 'ar') ? 'استعادة آمنة' : 'Secure Recovery' ?></div>
             <div class="point-text">
                 <?= ($lang === 'ar')
-                    ? 'سيتم إرسال كود تحقق مؤقت إلى بريدك الإلكتروني، وبعد التحقق يمكنك تعيين كلمة مرور جديدة بأمان.'
-                    : 'A temporary OTP code will be sent to your email, and after verification you can safely set a new password.' ?>
+                    ? 'سيتم إرسال كود تحقق مؤقت إلى البريد الإلكتروني المسجل لحسابك، وبعد التحقق يمكنك تعيين كلمة مرور جديدة بأمان.'
+                    : 'A temporary OTP code will be sent to the email registered with your username, and after verification you can safely set a new password.' ?>
             </div>
         </div>
     </section>
@@ -713,7 +618,9 @@ body{
         </div>
 
         <div class="brand-wrap">
-            <div class="brand-badge">🏥</div>
+            <div class="brand-badge">
+                <img src="assets/Cairo_hospitals1.png?v=2" alt="Cairo Hospitals">
+            </div>
             <div class="brand-text">
                 <h1><?= htmlspecialchars($t['app_name']) ?></h1>
             </div>
@@ -722,13 +629,7 @@ body{
         <p class="subtitle"><?= htmlspecialchars($t['card_subtitle']) ?></p>
 
         <div class="step-badge">
-            <span>
-                <?php
-                    if ($step === 1) echo htmlspecialchars($t['step_1']);
-                    elseif ($step === 2) echo htmlspecialchars($t['step_2']);
-                    else echo htmlspecialchars($t['step_3']);
-                ?>
-            </span>
+            <span><?= htmlspecialchars($t['step_1']) ?></span>
         </div>
 
         <?php if ($message !== ''): ?>
@@ -737,115 +638,32 @@ body{
             </div>
         <?php endif; ?>
 
-        <?php if ($step === 1): ?>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="field-label"><?= htmlspecialchars($t['email']) ?></label>
-                    <div class="input-wrap">
-                        <span class="icon">✉️</span>
-                        <input
-                            class="form-input"
-                            type="email"
-                            name="email"
-                            placeholder="<?= htmlspecialchars($t['email_placeholder']) ?>"
-                            required
-                        >
-                    </div>
+        <form method="POST">
+            <div class="form-group">
+                <label class="field-label"><?= htmlspecialchars($t['username']) ?></label>
+                <div class="input-wrap">
+                    <span class="icon"><i class="fa-solid fa-user"></i></span>
+                    <input
+                        class="form-input"
+                        type="text"
+                        name="username"
+                        id="username"
+                        value="<?= htmlspecialchars($username ?? '') ?>"
+                        placeholder="<?= htmlspecialchars($t['username_placeholder']) ?>"
+                        required
+                    >
                 </div>
+            </div>
 
-                <button type="submit" name="send_code" class="btn-submit">
-                    <?= htmlspecialchars($t['send_code']) ?>
-                </button>
-            </form>
-        <?php endif; ?>
-
-        <?php if ($step === 2): ?>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="field-label"><?= htmlspecialchars($t['otp']) ?></label>
-                    <div class="input-wrap">
-                        <span class="icon">🔢</span>
-                        <input
-                            class="form-input"
-                            type="text"
-                            name="otp"
-                            placeholder="<?= htmlspecialchars($t['otp_placeholder']) ?>"
-                            required
-                        >
-                    </div>
-                </div>
-
-                <button type="submit" name="verify_code" class="btn-submit">
-                    <?= htmlspecialchars($t['verify_code']) ?>
-                </button>
-            </form>
-        <?php endif; ?>
-
-        <?php if ($step === 3): ?>
-            <form method="POST">
-                <div class="form-group">
-                    <label class="field-label"><?= htmlspecialchars($t['new_password']) ?></label>
-                    <div class="input-wrap">
-                        <span class="icon">🔒</span>
-                        <input
-                            class="form-input"
-                            type="password"
-                            name="password"
-                            id="password"
-                            placeholder="<?= htmlspecialchars($t['new_password']) ?>"
-                            required
-                        >
-                        <span class="toggle-eye" onclick="togglePassword('password', this)" title="<?= htmlspecialchars($t['show_password']) ?>">
-                            <i class="fa-regular fa-eye"></i>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="field-label"><?= htmlspecialchars($t['confirm_password']) ?></label>
-                    <div class="input-wrap">
-                        <span class="icon">✅</span>
-                        <input
-                            class="form-input"
-                            type="password"
-                            name="confirm_password"
-                            id="confirm_password"
-                            placeholder="<?= htmlspecialchars($t['confirm_password']) ?>"
-                            required
-                        >
-                        <span class="toggle-eye" onclick="togglePassword('confirm_password', this)" title="<?= htmlspecialchars($t['show_password']) ?>">
-                            <i class="fa-regular fa-eye"></i>
-                        </span>
-                    </div>
-                </div>
-
-                <button type="submit" name="reset_password" class="btn-submit">
-                    <?= htmlspecialchars($t['reset_password']) ?>
-                </button>
-            </form>
-        <?php endif; ?>
+            <button type="submit" name="send_code" class="btn-submit">
+                <?= htmlspecialchars($t['send_code']) ?>
+            </button>
+        </form>
 
         <div class="links">
             <a href="index.php"><?= htmlspecialchars($t['back_login']) ?></a>
         </div>
     </section>
 </div>
-
-<script>
-function togglePassword(inputId, eyeElement) {
-    const input = document.getElementById(inputId);
-    const icon = eyeElement.querySelector('i');
-
-    if (input.type === "password") {
-        input.type = "text";
-        icon.className = "fa-regular fa-eye-slash";
-        eyeElement.title = "<?= addslashes($t['hide_password']) ?>";
-    } else {
-        input.type = "password";
-        icon.className = "fa-regular fa-eye";
-        eyeElement.title = "<?= addslashes($t['show_password']) ?>";
-    }
-}
-</script>
 </body>
 </html>

@@ -9,8 +9,6 @@ require_once __DIR__ . '/PHPMailer/src/SMTP.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-
-
 /* =========================
    Language handling
 ========================= */
@@ -18,7 +16,64 @@ if (isset($_GET['lang'])) {
     $_SESSION['lang'] = ($_GET['lang'] === 'ar') ? 'ar' : 'en';
 }
 $lang = $_SESSION['lang'] ?? 'en';
-
+$hero = [
+    'badge' => [
+        'en' => 'Trusted digital healthcare platform',
+        'ar' => 'منصة رعاية صحية رقمية موثوقة'
+    ],
+    'title' => [
+        'en' => 'Create your account and access smarter healthcare services.',
+        'ar' => 'أنشئ حسابك واحصل على خدمات رعاية صحية أكثر ذكاءً.'
+    ],
+    'desc' => [
+        'en' => 'Join Cairo Hospitals and experience a modern healthcare system designed to simplify your medical journey. From secure registration to smart face login, everything is built to save your time and protect your data.',
+        'ar' => 'انضم إلى مستشفيات القاهرة واستمتع بنظام رعاية صحية حديث مصمم لتسهيل رحلتك الطبية. من التسجيل الآمن إلى تسجيل الدخول الذكي بالوجه، كل شيء مصمم لتوفير وقتك وحماية بياناتك.'
+    ],
+    'features' => [
+        [
+            'icon' => 'fa-user-shield',
+            'title_en' => 'Secure Registration',
+            'title_ar' => 'تسجيل آمن',
+            'desc_en' => 'Your personal and medical data are protected with advanced security standards.',
+            'desc_ar' => 'بياناتك الشخصية والطبية محمية بمعايير أمان متقدمة.'
+        ],
+        [
+            'icon' => 'fa-calendar-check',
+            'title_en' => 'Appointment Management',
+            'title_ar' => 'إدارة المواعيد',
+            'desc_en' => 'Easily book, manage, and track all your hospital visits in one place.',
+            'desc_ar' => 'احجز وتابع وأدر زياراتك الطبية بسهولة من مكان واحد.'
+        ],
+        [
+            'icon' => 'fa-notes-medical',
+            'title_en' => 'Medical Records',
+            'title_ar' => 'السجلات الطبية',
+            'desc_en' => 'Access your medical history, diagnoses, and treatments anytime.',
+            'desc_ar' => 'يمكنك الوصول إلى تاريخك الطبي والتشخيصات والعلاجات في أي وقت.'
+        ],
+        [
+            'icon' => 'fa-camera',
+            'title_en' => 'Face Recognition Login',
+            'title_ar' => 'تسجيل الدخول بالوجه',
+            'desc_en' => 'Register your face securely for faster and smarter login experience.',
+            'desc_ar' => 'سجل وجهك بأمان لتجربة دخول أسرع وأكثر ذكاءً.'
+        ],
+        [
+            'icon' => 'fa-envelope',
+            'title_en' => 'Email Notifications',
+            'title_ar' => 'إشعارات البريد الإلكتروني',
+            'desc_en' => 'Receive your account credentials and updates directly via email.',
+            'desc_ar' => 'استلم بيانات حسابك والتحديثات مباشرة عبر بريدك الإلكتروني.'
+        ],
+        [
+            'icon' => 'fa-clock',
+            'title_en' => '24/7 Access',
+            'title_ar' => 'وصول على مدار الساعة',
+            'desc_en' => 'Use the system anytime, anywhere without limitations.',
+            'desc_ar' => 'استخدم النظام في أي وقت ومن أي مكان بدون قيود.'
+        ],
+    ]
+];
 $texts = [
     'en'=>[
         'heading'=>'Patient Registration',
@@ -27,7 +82,7 @@ $texts = [
         'national_id'=>'National ID',
         'password'=>'Password',
         'confirm'=>'Confirm Password',
-        'register'=>'Register',
+        'register'=>'Create Account',
         'back'=>'Back to Login',
         'welcome'=>'Create your hospital account',
         'error_match'=>'Passwords do not match.',
@@ -42,10 +97,9 @@ $texts = [
         'phone'=>'Phone Number',
         'error_email'=>'Invalid email format.',
         'error_nid'=>'National ID must be exactly 14 digits.',
-        'error_fill'=>'Please fill all fields and provide a National ID photo.',
+        'error_fill'=>'Please fill all required fields.',
         'error_birthdate'=>'Invalid birthdate.',
         'nid_photo'=>'National ID Photo',
-        'take_photo'=>'📸',
         'face_scan'=>'Face Scan',
         'open_face_camera'=>'Open Face Camera',
         'start_face_scan'=>'Start Face Scan',
@@ -55,8 +109,6 @@ $texts = [
         'face_done'=>'Face scan completed successfully.',
         'face_camera_error'=>'Could not open face camera.',
         'camera_not_ready'=>'Camera not ready yet.',
-        'camera_capture'=>'Capture',
-        'camera_not_available'=>'Camera not available',
         'username_exists'=>'Username already exists.',
         'nid_exists'=>'National ID already exists.',
         'db_error'=>'Database error.',
@@ -77,8 +129,9 @@ $texts = [
         'face_scan_ready'=>'Camera ready. Start the guided scan.',
         'face_samples_target'=>'Two photos will be captured for each angle.',
         'smtp_not_ready'=>'Account created, but email service is not configured correctly.',
+        'first_name'=>'First Name',
+        'last_name'=>'Last Name',
     ],
-
     'ar'=>[
         'heading'=>'تسجيل مريض',
         'title'=>'تسجيل حساب جديد',
@@ -86,7 +139,7 @@ $texts = [
         'national_id'=>'الرقم القومي',
         'password'=>'كلمة المرور',
         'confirm'=>'تأكيد كلمة المرور',
-        'register'=>'تسجيل',
+        'register'=>'إنشاء الحساب',
         'back'=>'العودة لتسجيل الدخول',
         'welcome'=>'إنشاء حساب جديد في المستشفى',
         'error_match'=>'كلمتا المرور غير متطابقتين.',
@@ -101,10 +154,9 @@ $texts = [
         'phone'=>'رقم الهاتف',
         'error_email'=>'صيغة البريد الإلكتروني غير صحيحة.',
         'error_nid'=>'يجب أن يكون الرقم القومي 14 رقمًا.',
-        'error_fill'=>'يرجى ملء جميع الحقول وإضافة صورة البطاقة.',
+        'error_fill'=>'يرجى ملء جميع الحقول المطلوبة.',
         'error_birthdate'=>'تاريخ الميلاد غير صحيح.',
         'nid_photo'=>'صورة البطاقة',
-        'take_photo'=>'📸',
         'face_scan'=>'مسح الوجه',
         'open_face_camera'=>'فتح كاميرا الوجه',
         'start_face_scan'=>'ابدأ مسح الوجه',
@@ -114,8 +166,6 @@ $texts = [
         'face_done'=>'تم الانتهاء من مسح الوجه بنجاح.',
         'face_camera_error'=>'تعذر فتح كاميرا الوجه.',
         'camera_not_ready'=>'الكاميرا ليست جاهزة بعد.',
-        'camera_capture'=>'التقاط',
-        'camera_not_available'=>'الكاميرا غير متاحة',
         'username_exists'=>'اسم المستخدم موجود بالفعل.',
         'nid_exists'=>'الرقم القومي موجود بالفعل.',
         'db_error'=>'خطأ في قاعدة البيانات.',
@@ -136,12 +186,16 @@ $texts = [
         'face_scan_ready'=>'الكاميرا جاهزة. ابدأ المسح الموجّه.',
         'face_samples_target'=>'سيتم التقاط صورتين لكل زاوية.',
         'smtp_not_ready'=>'تم إنشاء الحساب ولكن خدمة البريد غير مضبوطة بشكل صحيح.',
+        'first_name'=>'الاسم الأول',
+        'last_name'=>'اسم العائلة',
     ]
 ];
 
 $t = $texts[$lang];
 $error = '';
 $success_notice = '';
+$fieldErrors = [];
+$old = [];
 $dir = ($lang === 'ar') ? 'rtl' : 'ltr';
 
 function lang_link_register($code) {
@@ -149,16 +203,27 @@ function lang_link_register($code) {
     return $self . '?lang=' . $code;
 }
 
+function old_value($key, $old) {
+    return htmlspecialchars($old[$key] ?? '', ENT_QUOTES, 'UTF-8');
+}
+
+function field_error($key, $fieldErrors) {
+    if (!empty($fieldErrors[$key])) {
+        return '<div class="field-error">' . htmlspecialchars($fieldErrors[$key], ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+    return '';
+}
+
 /* =========================
    SMTP Mail helper
-   CHANGE THESE VALUES
+   Put your Gmail App Password below
 ========================= */
 function sendWelcomeCredentialsEmailSMTP($toEmail, $username, $plainPassword, $lang, $texts) {
-   $smtpUser = 'cairohospitals0@gmail.com';
-$smtpPass = 'nyqt rjbf pyoo qsfx';
+    $smtpUser = 'cairohospitals0@gmail.com';
+    $smtpPass = 'dnpoxjybarrdwhxd';
     $fromName = 'Cairo Hospitals';
 
-    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpUser === 'YOUR_GMAIL@gmail.com') {
+    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {
         return ['ok' => false, 'reason' => 'smtp_not_configured'];
     }
 
@@ -172,22 +237,23 @@ $smtpPass = 'nyqt rjbf pyoo qsfx';
         $labelUser = $texts[$lang]['email_user'];
         $labelPass = $texts[$lang]['email_pass'];
         $note      = $texts[$lang]['email_note'];
+$mail->isSMTP();
 
-        $mail->isSMTP();
-        $mail->SMTPOptions = [
+$mail->SMTPOptions = [
     'ssl' => [
         'verify_peer' => false,
         'verify_peer_name' => false,
         'allow_self_signed' => true,
     ],
 ];
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $smtpUser;
-        $mail->Password   = $smtpPass;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        $mail->CharSet    = 'UTF-8';
+
+$mail->Host       = 'smtp.gmail.com';
+$mail->SMTPAuth   = true;
+$mail->Username   = $smtpUser;
+$mail->Password   = $smtpPass;
+$mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+$mail->Port       = 587;
+$mail->CharSet    = 'UTF-8';
 
         $mail->setFrom($smtpUser, $fromName);
         $mail->addAddress($toEmail);
@@ -219,18 +285,108 @@ $smtpPass = 'nyqt rjbf pyoo qsfx';
 
         $mail->send();
         return ['ok' => true, 'reason' => 'sent'];
-    }catch (Exception $e) {
-    return ['ok' => false, 'reason' => $mail->ErrorInfo];
-}
+    } catch (Exception $e) {
+        return ['ok' => false, 'reason' => $mail->ErrorInfo];
+    }
 }
 
+
+function app_base_url() {
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+    $scheme = $https ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+
+    return $scheme . '://' . $host . ($dir ? $dir : '');
+}
+
+function sendVerificationEmailSMTP($toEmail, $username, $plainPassword, $verifyUrl, $expiresSeconds =600) {
+    $smtpUser = 'cairohospitals0@gmail.com';
+    $smtpPass = 'dnpoxjybarrdwhxd';
+    $fromName = 'Cairo Hospitals';
+
+    if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {
+        return ['ok' => false, 'reason' => 'smtp_not_configured'];
+    }
+
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ],
+        ];
+
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $smtpUser;
+        $mail->Password   = $smtpPass;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->CharSet    = 'UTF-8';
+
+        $mail->setFrom($smtpUser, $fromName);
+        $mail->addAddress($toEmail);
+        $mail->isHTML(true);
+        $mail->Subject = 'Verify your Cairo Hospitals account';
+
+        $safeUser = htmlspecialchars($username, ENT_QUOTES, 'UTF-8');
+        $safePass = htmlspecialchars($plainPassword, ENT_QUOTES, 'UTF-8');
+        $safeUrl  = htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8');
+        $minutesText = $expiresSeconds < 60 ? $expiresSeconds . ' seconds' : ceil($expiresSeconds / 60) . ' minutes';
+
+        $mail->Body = '
+        <html>
+        <body style="font-family:Arial,sans-serif;line-height:1.8;color:#0f172a;background:#f8fafc;padding:24px;">
+            <div style="max-width:620px;margin:auto;background:#ffffff;border:1px solid #dbe4ee;border-radius:16px;padding:28px;">
+                <h2 style="color:#116ad0;margin-top:0;">Verify your email address</h2>
+                <p>Welcome to Cairo Hospitals.</p>
+                <p>Your account registration is not completed yet. Please click the button below to verify your email and complete the registration.</p>
+                <p style="text-align:center;margin:30px 0;">
+                    <a href="' . $safeUrl . '" style="background:#116ad0;color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:10px;font-weight:bold;display:inline-block;">Verify Email</a>
+                </p>
+                <div style="background:#f8fafc;border:1px solid #dbe4ee;border-radius:12px;padding:16px;">
+                    <p><strong>Username:</strong> ' . $safeUser . '</p>
+                    <p><strong>Password:</strong> ' . $safePass . '</p>
+                </div>
+                <p style="color:#dc2626;font-weight:bold;">This verification link expires in ' . htmlspecialchars($minutesText, ENT_QUOTES, 'UTF-8') . '.</p>
+                <p>If the button does not work, copy and open this link:</p>
+                <p style="word-break:break-all;color:#116ad0;">' . $safeUrl . '</p>
+            </div>
+        </body>
+        </html>';
+
+        $mail->AltBody =
+            "Verify your Cairo Hospitals account\n\n" .
+            "Your account registration is not completed yet. Open this link to verify your email and complete registration:\n" .
+            $verifyUrl . "\n\n" .
+            "Username: " . $username . "\n" .
+            "Password: " . $plainPassword . "\n\n" .
+            "This verification link expires in " . $minutesText . ".";
+
+        $mail->send();
+        return ['ok' => true, 'reason' => 'sent'];
+    } catch (Exception $e) {
+        return ['ok' => false, 'reason' => $mail->ErrorInfo];
+    }
+}
+
+/* =========================
+   Backend registration
+========================= */
 if($_SERVER['REQUEST_METHOD']==='POST'){
-   $first_name       = trim($_POST['first_name'] ?? '');
-$last_name        = trim($_POST['last_name'] ?? '');
-$username         = trim($_POST['username'] ?? '');
-$national_id      = trim($_POST['national_id'] ?? '');
-$password         = trim($_POST['password'] ?? '');
-$confirm          = trim($_POST['confirm_password'] ?? '');
+    $first_name       = trim($_POST['first_name'] ?? '');
+    $last_name        = trim($_POST['last_name'] ?? '');
+    $username         = trim($_POST['username'] ?? '');
+    $national_id      = trim($_POST['national_id'] ?? '');
+    $password         = trim($_POST['password'] ?? '');
+    $confirm          = trim($_POST['confirm_password'] ?? '');
     $gender           = $_POST['gender'] ?? '';
     $governorate      = $_POST['governorate'] ?? '';
     $birthdate        = $_POST['birthdate'] ?? '';
@@ -238,21 +394,36 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
     $email            = trim($_POST['email'] ?? '');
     $contact_number   = trim($_POST['contact_number'] ?? '');
     $face_images_json = $_POST['face_images_json'] ?? '[]';
+    $old_national_id_photo = trim($_POST['old_national_id_photo'] ?? '');
+
+    $old = [
+        'first_name'=>$first_name,
+        'last_name'=>$last_name,
+        'username'=>$username,
+        'national_id'=>$national_id,
+        'gender'=>$gender,
+        'governorate'=>$governorate,
+        'birthdate'=>$birthdate,
+        'address'=>$address,
+        'email'=>$email,
+        'contact_number'=>$contact_number,
+        'national_id_photo'=>$old_national_id_photo,
+    ];
 
     $plainPasswordForEmail = $password;
-
-   
 
     $validPassword = preg_match('/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[\W_]).{8,}$/', $password);
     $validEmail    = filter_var($email, FILTER_VALIDATE_EMAIL);
     $validNID      = preg_match('/^\d{14}$/', $national_id);
 
     $nid_photo_name = '';
-    $nid_photo_path = '';
+    $nid_photo_path = $old_national_id_photo;
+    $has_new_nid_photo = isset($_FILES['nid_photo']) && $_FILES['nid_photo']['error'] === UPLOAD_ERR_OK && !empty($_FILES['nid_photo']['name']);
+    $has_old_nid_photo = !empty($old_national_id_photo);
 
-    if(!empty($_FILES['nid_photo']['name'])){
+    if($has_new_nid_photo){
         $original = basename($_FILES['nid_photo']['name']);
-        $ext      = pathinfo($original, PATHINFO_EXTENSION);
+        $ext      = strtolower(pathinfo($original, PATHINFO_EXTENSION));
         $safeBase = preg_replace('/[^A-Za-z0-9_\-\.]/','_',substr(pathinfo($original, PATHINFO_FILENAME),0,50));
         $nid_photo_name = "nid_".time()."_".$safeBase.".".$ext;
 
@@ -265,101 +436,77 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
 
         if(move_uploaded_file($_FILES['nid_photo']['tmp_name'],$target)){
             $nid_photo_path = "/uploads/".$nid_photo_name;
+            $old['national_id_photo'] = $nid_photo_path;
+            $has_old_nid_photo = true;
         } else {
             $nid_photo_name = '';
-            $nid_photo_path = '';
+            $nid_photo_path = $old_national_id_photo;
+            $old['national_id_photo'] = $old_national_id_photo;
         }
     }
 
-    $face_saved_ok = false;
-    $face_relative_path = '';
-    $face_samples_count = 0;
-    $saved_face_paths = [];
 
-    $decodedFaceImages = json_decode($face_images_json, true);
-    if (!is_array($decodedFaceImages)) {
-        $decodedFaceImages = [];
+$decodedFaceImages = json_decode($face_images_json, true);
+
+if (!is_array($decodedFaceImages)) {
+    $decodedFaceImages = [];
+}
+
+/*
+The browser may send face images in one of these formats:
+
+1) [
+     "data:image/jpeg;base64,...",
+     "data:image/jpeg;base64,..."
+   ]
+
+2) [
+     {"angle":"front", "image":"data:image/jpeg;base64,..."},
+     {"angle":"left", "image":"data:image/jpeg;base64,..."}
+   ]
+
+This code supports both. The real face registration will happen only after
+email verification inside verify_email.php, not before verification.
+*/
+$faceImagesForApi = [];
+
+foreach ($decodedFaceImages as $imgItem) {
+    if (is_array($imgItem) && !empty($imgItem['image'])) {
+        $faceImagesForApi[] = $imgItem['image'];
+    } elseif (is_string($imgItem) && !empty($imgItem)) {
+        $faceImagesForApi[] = $imgItem;
     }
+}
 
-    if (!empty($decodedFaceImages) && !empty($username)) {
-        $faceDbRoot = "C:/xampp/htdocs/hospital/FFace_Recognition_System _Depi_stud/build_database/db_folder";
-        $safeUsername = preg_replace('/[^A-Za-z0-9_\-]/', '_', $username);
-        $personDir = $faceDbRoot . "/" . $safeUsername;
+$face_saved_ok = count($faceImagesForApi) >= 6;
+    if(!$first_name){ $fieldErrors['first_name'] = $t['error_fill']; }
+    if(!$last_name){ $fieldErrors['last_name'] = $t['error_fill']; }
+    if(!$username){ $fieldErrors['username'] = $t['error_fill']; }
+    if(!$national_id){ $fieldErrors['national_id'] = $t['error_fill']; }
+    elseif(!$validNID){ $fieldErrors['national_id'] = $t['error_nid']; }
+    if(!$password){ $fieldErrors['password'] = $t['error_fill']; }
+    elseif(!$validPassword){ $fieldErrors['password'] = $t['error_invalid']; }
+    if(!$confirm){ $fieldErrors['confirm_password'] = $t['error_fill']; }
+    elseif($password !== $confirm){ $fieldErrors['confirm_password'] = $t['error_match']; }
+    if(!$gender){ $fieldErrors['gender'] = $t['error_fill']; }
+    if(!$governorate){ $fieldErrors['governorate'] = $t['error_fill']; }
+    if(!$address){ $fieldErrors['address'] = $t['error_fill']; }
+    if(!$email){ $fieldErrors['email'] = $t['error_fill']; }
+    elseif(!$validEmail){ $fieldErrors['email'] = $t['error_email']; }
+    if(!$birthdate){ $fieldErrors['birthdate'] = $t['error_fill']; }
+    elseif(strtotime($birthdate) > strtotime(date('Y-m-d'))){ $fieldErrors['birthdate'] = $t['error_birthdate']; }
+    if(!$contact_number){ $fieldErrors['contact_number'] = $t['error_fill']; }
+    if(!$has_new_nid_photo && !$has_old_nid_photo){ $fieldErrors['nid_photo'] = $t['error_fill']; }
+    if(!$face_saved_ok){ $fieldErrors['face_images_json'] = $t['face_required']; }
 
-        if (!is_dir($personDir)) {
-            mkdir($personDir, 0755, true);
-        }
-
-        $counter = 1;
-        foreach ($decodedFaceImages as $imgItem) {
-            $angleName = 'face';
-            $imgData = '';
-
-            if (is_array($imgItem)) {
-                $angleName = preg_replace('/[^A-Za-z0-9_\-]/', '_', strtolower($imgItem['angle'] ?? 'face'));
-                $imgData = $imgItem['image'] ?? '';
-            } else {
-                $imgData = $imgItem;
-            }
-
-            if (!preg_match('/^data:image\/(\w+);base64,/', $imgData, $type)) {
-                continue;
-            }
-
-            $imageDataClean = substr($imgData, strpos($imgData, ',') + 1);
-            $imageDataClean = str_replace(' ', '+', $imageDataClean);
-            $imageBinary = base64_decode($imageDataClean);
-
-            if ($imageBinary === false) {
-                continue;
-            }
-
-            $imageExt = strtolower($type[1]);
-            if (!in_array($imageExt, ['jpg', 'jpeg', 'png'])) {
-                $imageExt = 'jpg';
-            }
-
-            $faceFileName = sprintf("%s_%s_%03d_%d.%s", $safeUsername, $angleName, $counter, time(), $imageExt);
-            $faceFullPath = $personDir . "/" . $faceFileName;
-
-            if (file_put_contents($faceFullPath, $imageBinary) !== false) {
-                $saved_face_paths[] = "build_database/db_folder/" . $safeUsername . "/" . $faceFileName;
-                $counter++;
-            }
-        }
-
-        $face_samples_count = count($saved_face_paths);
-        if ($face_samples_count >= 6) {
-            $face_saved_ok = true;
-            $face_relative_path = $saved_face_paths[0];
-        }
-    }
-
-    if(!$username || !$national_id || !$password || !$confirm || !$gender || !$governorate || !$address || !$email || !$birthdate || !$contact_number){
-        $error = $t['error_fill'];
-    }elseif(!$validNID){
-        $error = $t['error_nid'];
-    }elseif(!$validPassword){
-        $error = $t['error_invalid'];
-    }elseif($password !== $confirm){
-        $error = $t['error_match'];
-    }elseif(!$validEmail){
-        $error = $t['error_email'];
-    }elseif(strtotime($birthdate) > strtotime(date('Y-m-d'))){
-        $error = $t['error_birthdate'];
-    }elseif(!$nid_photo_path){
-        $error = $t['error_fill'];
-    }elseif(!$face_saved_ok){
-        $error = $t['face_required'];
-    }else{
-
+    if (empty($fieldErrors)) {
         $stmtCheckUser = $conn->prepare("SELECT id FROM registration WHERE username = ? LIMIT 1");
         $stmtCheckUser->bind_param("s", $username);
         $stmtCheckUser->execute();
         $stmtCheckUser->store_result();
 
         if($stmtCheckUser->num_rows > 0){
-            $error = $t['username_exists'];
+            $fieldErrors['username'] = $t['username_exists'];
         } else {
             $stmtCheckNID = $conn->prepare("SELECT id FROM registration WHERE national_id = ? LIMIT 1");
             $stmtCheckNID->bind_param("s", $national_id);
@@ -367,153 +514,81 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
             $stmtCheckNID->store_result();
 
             if($stmtCheckNID->num_rows > 0){
-                $error = $t['nid_exists'];
+                $fieldErrors['national_id'] = $t['nid_exists'];
             } else {
-                $hashed = password_hash($password, PASSWORD_DEFAULT);
+                $stmtPending = $conn->prepare("SELECT id, status, expires_at FROM pending_registrations WHERE (username = ? OR national_id = ? OR email = ?) AND status = 'pending' LIMIT 1");
 
-                $stmt_reg = $conn->prepare("
-                    INSERT INTO registration
-                    (first_name, last_name, username, password, national_id, national_id_photo, face_image_path, face_samples_count, gender, government, birthdate, address, email, phone_number)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ");
-
-                if(!$stmt_reg){
-                    $error = $t['db_error'] . ": " . $conn->error;
+                if(!$stmtPending){
+                    $error = $t['db_error'] . " (pending check): " . $conn->error;
                 } else {
-                    $stmt_reg->bind_param(
-                        "ssssssssssssss",
-                        $first_name,
-                        $last_name,
-                        $username,
-                        $hashed,
-                        $national_id,
-                        $nid_photo_path,
-                        $face_relative_path,
-                        $face_samples_count,
-                        $gender,
-                        $governorate,
-                        $birthdate,
-                        $address,
-                        $email,
-                        $contact_number
-                    );
+                    $stmtPending->bind_param("sss", $username, $national_id, $email);
+                    $stmtPending->execute();
+                    $pendingResult = $stmtPending->get_result();
+                    $pendingRow = $pendingResult ? $pendingResult->fetch_assoc() : null;
 
-                    if($stmt_reg->execute()){
+                    if($pendingRow && strtotime($pendingRow['expires_at']) >= time()){
+                        $error = "A verification email was already sent. Please check your email or wait until the link expires.";
+                    } else {
+                        $expireOld = $conn->prepare("UPDATE pending_registrations SET status='expired' WHERE (username = ? OR national_id = ? OR email = ?) AND status='pending'");
+                        if($expireOld){
+                            $expireOld->bind_param("sss", $username, $national_id, $email);
+                            $expireOld->execute();
+                        }
 
-                        $role = 'patient';
-                        $stmt_login = $conn->prepare("
-                            INSERT INTO login (username, password, national_id, role, face_image_path, face_samples_count)
-                            VALUES (?,?,?,?,?,?)
+                        $hashed = password_hash($password, PASSWORD_DEFAULT);
+                        $token = bin2hex(random_bytes(32));
+                        $expiresSeconds = 600;
+                        $expiresAt = date('Y-m-d H:i:s', time() + $expiresSeconds);
+
+                        $stmtInsertPending = $conn->prepare("
+                            INSERT INTO pending_registrations
+                            (token, first_name, last_name, username, password_hash, national_id, national_id_photo, gender, government, birthdate, address, email, phone_number, face_images_json, status, expires_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending', ?)
                         ");
 
-                        if(!$stmt_login){
-                            $error = $t['db_error'] . " (login): " . $conn->error;
+                        if(!$stmtInsertPending){
+                            $error = $t['db_error'] . " (pending insert): " . $conn->error;
                         } else {
-                            $stmt_login->bind_param(
-                                "sssssi",
+                            $stmtInsertPending->bind_param(
+                                "sssssssssssssss",
+                                $token,
+                                $first_name,
+                                $last_name,
                                 $username,
                                 $hashed,
                                 $national_id,
-                                $role,
-                                $face_relative_path,
-                                $face_samples_count
+                                $nid_photo_path,
+                                $gender,
+                                $governorate,
+                                $birthdate,
+                                $address,
+                                $email,
+                                $contact_number,
+                                $face_images_json,
+                                $expiresAt
                             );
 
-                            if($stmt_login->execute()){
+                            if($stmtInsertPending->execute()){
+                                $verifyUrl = app_base_url() . "/verify_email.php?token=" . urlencode($token);
 
-                                $bloodType = NULL;
-                                $stmt_patient = $conn->prepare("
-                                    INSERT INTO patients
-                                    (NationalID, FirstName, LastName, DOB, Gender, BloodType, ContactPhone, Email, Address)
-                                    VALUES (?,?,?,?,?,?,?,?,?)
-                                ");
+                                $mailResult = sendVerificationEmailSMTP(
+                                    $email,
+                                    $username,
+                                    $plainPasswordForEmail,
+                                    $verifyUrl,
+                                    $expiresSeconds
+                                );
 
-                                if(!$stmt_patient){
-                                    $error = $t['db_error'] . " (patients): " . $conn->error;
+                                if (!$mailResult['ok']) {
+                                    $error = 'Mail error: ' . $mailResult['reason'];
                                 } else {
-                                    $stmt_patient->bind_param(
-                                        "sssssssss",
-                                        $national_id,
-                                        $first_name,
-                                        $last_name,
-                                        $birthdate,
-                                        $gender,
-                                        $bloodType,
-                                        $contact_number,
-                                        $email,
-                                        $address
-                                    );
-
-                                    if($stmt_patient->execute()){
-
-                                        $visit_date   = date('Y-m-d H:i:s');
-                                        $doctor_name  = "System";
-                                        $diagnosis    = "New patient registration";
-                                        $treatment    = "Initial account created in patient portal.";
-
-                                        $stmt_history = $conn->prepare("
-                                            INSERT INTO patient_history
-                                            (patient_username, visit_date, doctor_name, diagnosis, treatment)
-                                            VALUES (?,?,?,?,?)
-                                        ");
-
-                                        if(!$stmt_history){
-                                            $error = $t['db_error'] . " (history): " . $conn->error;
-                                        } else {
-                                            $stmt_history->bind_param(
-                                                "sssss",
-                                                $username,
-                                                $visit_date,
-                                                $doctor_name,
-                                                $diagnosis,
-                                                $treatment
-                                            );
-
-                                            if($stmt_history->execute()){
-
-                                                $mailResult = sendWelcomeCredentialsEmailSMTP(
-                                                    $email,
-                                                    $username,
-                                                    $plainPasswordForEmail,
-                                                    $lang,
-                                                    $texts
-                                                );
-
-                                                if (!$mailResult['ok']) {
-                                                   $success_notice = 'Mail error: ' . $mailResult['reason'];
-                                                }
-
-                                                $reloadUrl = "http://127.0.0.1:5001/reload_db";
-                                                $context = stream_context_create([
-                                                    'http' => [
-                                                        'method'  => 'POST',
-                                                        'timeout' => 3,
-                                                        'header'  => "Content-Type: application/json\r\n"
-                                                    ]
-                                                ]);
-                                                @file_get_contents($reloadUrl, false, $context);
-
-                                                if (empty($success_notice)) {
-                                                    header("Location:index.php");
-                                                    exit();
-                                                }
-                                            } else {
-                                                $error = $t['db_error'] . ": Failed to create initial history: " . $stmt_history->error;
-                                            }
-                                        }
-
-                                    } else {
-                                        $error = $t['db_error'] . ": Failed to create patient record: " . $stmt_patient->error;
-                                    }
+                                    header("Location:waiting_verification.php?token=" . urlencode($token));
+                                    exit();
                                 }
-
                             } else {
-                                $error = $t['db_error'] . ": Failed to create user login: " . $stmt_login->error;
+                                $error = $t['db_error'] . ": Failed to save pending registration: " . $stmtInsertPending->error;
                             }
                         }
-
-                    } else {
-                        $error = $t['db_error'] . ": Failed to create registration: " . $stmt_reg->error;
                     }
                 }
             }
@@ -524,10 +599,11 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
 <!doctype html>
 <html lang="<?= htmlspecialchars($lang) ?>" dir="<?= htmlspecialchars($dir) ?>">
 <head>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title><?= htmlspecialchars($t['title']) ?></title>
+<link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
@@ -535,17 +611,16 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
     --bg-1:#08111f;
     --bg-2:#0d1b2f;
     --bg-3:#12385f;
-    --primary:#1f8fff;
-    --primary-dark:#116ad0;
-    --success:#17a34a;
-    --success-dark:#12833c;
+    --primary:#1478d4;
+    --primary-dark:#0f62b8;
+    --success:#18b957;
+    --success-dark:#159447;
     --text:#0f172a;
     --muted:#64748b;
     --line:#dbe4ee;
-    --card:rgba(255,255,255,0.94);
+    --card:rgba(255,255,255,0.96);
     --white:#ffffff;
-    --shadow:0 20px 60px rgba(2, 12, 27, 0.35);
-    --warning:#f59e0b;
+    --shadow:0 24px 70px rgba(2, 12, 27, 0.38);
     --danger:#dc2626;
 }
 
@@ -555,36 +630,54 @@ $confirm          = trim($_POST['confirm_password'] ?? '');
     padding:0;
 }
 
+html{
+    min-height:100%;
+    overflow-x:hidden;
+}
+
 body{
     font-family:'Inter',sans-serif;
     min-height:100vh;
     background:
         radial-gradient(circle at 15% 20%, rgba(31,143,255,0.25), transparent 22%),
         radial-gradient(circle at 85% 18%, rgba(34,197,94,0.18), transparent 20%),
-        radial-gradient(circle at 50% 85%, rgba(14,165,233,0.18), transparent 24%),
         linear-gradient(135deg, var(--bg-1), var(--bg-2) 45%, var(--bg-3));
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:28px 16px;
     color:var(--text);
+    overflow-x:hidden;
+    overflow-y:auto;
+    margin:0;
+    padding:34px 18px 34px 56px;
 }
 
 .page-shell{
     width:100%;
-    max-width:1220px;
+    max-width:none;
     display:grid;
-    grid-template-columns: 1.05fr 0.95fr;
-    gap:32px;
-    align-items:center;
+    grid-template-columns:minmax(0, 1fr) 590px;
+    gap:34px;
+    align-items:flex-start;
 }
 
 .hero-panel{
     color:#fff;
-    padding:20px 6px 20px 10px;
+    padding:35px 0 40px 0;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    gap:20px;
+    overflow:visible;
 }
 
-.eyebrow{
+.hero-content{
+    width:100%;
+    max-width:850px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+}
+
+.eyebrow,
+.badge{
     display:inline-flex;
     align-items:center;
     gap:10px;
@@ -594,25 +687,27 @@ body{
     border-radius:999px;
     font-size:13px;
     font-weight:600;
-    letter-spacing:0.2px;
+    width:fit-content;
     margin-bottom:20px;
-    backdrop-filter: blur(10px);
+    backdrop-filter:blur(10px);
 }
 
 .hero-title{
-    font-size: clamp(34px, 5vw, 58px);
-    line-height:1.04;
+    font-size:clamp(42px, 4.6vw, 68px);
+    line-height:1.06;
     font-weight:800;
     letter-spacing:-1.5px;
     margin-bottom:16px;
+    max-width:780px;
 }
 
-.hero-text{
-    max-width:560px;
+.hero-text,
+.hero-desc{
+    max-width:760px;
     font-size:16px;
     line-height:1.8;
     color:rgba(255,255,255,0.84);
-    margin-bottom:28px;
+    margin-bottom:24px;
 }
 
 .hero-points{
@@ -626,8 +721,8 @@ body{
     background:rgba(255,255,255,0.08);
     border:1px solid rgba(255,255,255,0.12);
     border-radius:18px;
-    padding:16px 16px;
-    backdrop-filter: blur(10px);
+    padding:16px;
+    backdrop-filter:blur(10px);
 }
 
 .point-title{
@@ -643,13 +738,92 @@ body{
     color:rgba(255,255,255,0.75);
 }
 
+.hero-features{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(250px, 1fr));
+    gap:18px;
+    margin-top:20px;
+    width:100%;
+    max-width:820px;
+}
+.feature-item{
+    display:flex;
+    gap:14px;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.14);
+    padding:18px;
+    border-radius:18px;
+    backdrop-filter:blur(10px);
+    min-height:126px;
+}
+
+.feature-item i{
+    width:40px;
+    height:40px;
+    border-radius:12px;
+    background:rgba(255,255,255,0.12);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#22c55e;
+    font-size:16px;
+    flex-shrink:0;
+}
+
+.feature-item h4{
+    font-size:15px;
+    margin-bottom:4px;
+    color:#fff;
+}
+
+.feature-item p{
+    font-size:13px;
+    color:#cbd5e1;
+    line-height:1.6;
+}
+
+.hero-cards{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-top:10px;
+}
+
+.hero-card{
+    display:flex;
+    gap:12px;
+    background:rgba(255,255,255,0.08);
+    padding:14px;
+    border-radius:14px;
+    align-items:flex-start;
+}
+
+.hero-card i{
+    font-size:18px;
+    color:#22c55e;
+    margin-top:4px;
+}
+
+.hero-card h4{
+    font-size:14px;
+    margin-bottom:3px;
+    color:#fff;
+}
+
+.hero-card p{
+    font-size:12px;
+    color:#cbd5e1;
+}
+
 .register-card{
     width:100%;
-    max-width:560px;
-    margin-inline:auto;
+    max-width:590px;
+    justify-self:end;
+    margin-left:0;
+    margin-right:6px;
     background:var(--card);
     border:1px solid rgba(255,255,255,0.7);
-    backdrop-filter: blur(18px);
+    backdrop-filter:blur(18px);
     border-radius:28px;
     box-shadow:var(--shadow);
     padding:28px 28px 24px;
@@ -659,7 +833,7 @@ body{
 .lang-toggle{
     position:absolute;
     top:18px;
-    <?= ($dir === 'rtl') ? 'left' : 'right' ?>: 18px;
+    <?= ($dir === 'rtl') ? 'left' : 'right' ?>:18px;
     display:flex;
     gap:8px;
 }
@@ -675,18 +849,12 @@ body{
     border:1px solid #c7d5e4;
     color:#27527b;
     background:rgba(255,255,255,0.65);
-    transition:all .2s ease;
 }
 
 .lang-toggle a.active{
     background:#eef6ff;
     border-color:#9cc5f1;
     color:#0f62b8;
-}
-
-.lang-toggle a:hover{
-    background:#eef6ff;
-    border-color:#9cc5f1;
 }
 
 .brand-wrap{
@@ -699,24 +867,33 @@ body{
 }
 
 .brand-badge{
-    width:54px;
-    height:54px;
-    border-radius:18px;
-    background:linear-gradient(135deg, #e8f3ff, #f0fff5);
+    width:64px;
+    height:64px;
+    border-radius:20px;
+    background:#fff;
     border:1px solid #dbeafe;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:28px;
     box-shadow:0 8px 24px rgba(31,143,255,0.12);
+    overflow:hidden;
+    flex-shrink:0;
+}
+
+.brand-badge img{
+    width:58px;
+    height:58px;
+    object-fit:contain;
+    display:block;
 }
 
 .brand-text h1{
-    font-size:20px;
+    font-size:22px;
     font-weight:800;
     line-height:1.2;
     color:#136f33;
     text-align:center;
+    white-space:nowrap;
 }
 
 .subtitle{
@@ -727,10 +904,8 @@ body{
     line-height:1.7;
 }
 
-.error{
-    background:#fff1f2;
-    border:1px solid #fecdd3;
-    color:#be123c;
+.error,
+.notice{
     text-align:center;
     margin-bottom:14px;
     font-size:14px;
@@ -739,16 +914,16 @@ body{
     font-weight:600;
 }
 
+.error{
+    background:#fff1f2;
+    border:1px solid #fecdd3;
+    color:#be123c;
+}
+
 .notice{
     background:#fff7ed;
     border:1px solid #fed7aa;
     color:#9a3412;
-    text-align:center;
-    margin-bottom:14px;
-    font-size:14px;
-    border-radius:14px;
-    padding:12px 14px;
-    font-weight:600;
 }
 
 .grid-2{
@@ -779,8 +954,9 @@ body{
     transform:translateY(-50%);
     <?= ($dir === 'rtl') ? 'right:14px;' : 'left:14px;' ?>
     font-size:15px;
-    color:#7c90a8;
+    color:#1478d4;
     pointer-events:none;
+    z-index:2;
 }
 
 .form-input,
@@ -800,6 +976,7 @@ body{
     height:56px;
     <?= ($dir === 'rtl') ? 'padding:0 44px 0 48px;' : 'padding:0 48px 0 44px;' ?>
 }
+
 .form-textarea{
     min-height:112px;
     resize:vertical;
@@ -815,59 +992,64 @@ body{
     background:#fff;
 }
 
-.form-input::placeholder,
-.form-textarea::placeholder{
-    color:#8a9aae;
+.toggle-eye{
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    <?= ($dir === 'rtl') ? 'left:14px;' : 'right:14px;' ?>
+    width:28px;
+    height:28px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    color:#1478d4;
+    z-index:5;
+    border-radius:50%;
 }
 
+.toggle-eye:hover{
+    background:#e8f3ff;
+}
+
+.toggle-eye i{
+    font-size:17px;
+}
+
+.password-hint,
 .helper-line{
     font-size:12px;
-    color:#7f8ea3;
+    color:#64748b;
     margin-top:6px;
+    padding-inline:4px;
+    line-height:1.5;
+}
+
+.field-error{
+    color:var(--danger);
+    font-size:12px;
+    font-weight:700;
+    margin-top:6px;
+    line-height:1.5;
     padding-inline:4px;
 }
 
-.file-group{
-    display:flex;
-    align-items:center;
-    gap:8px;
+.has-error .form-input,
+.has-error .form-select,
+.has-error .form-textarea,
+.form-input.invalid,
+.form-select.invalid,
+.form-textarea.invalid{
+    border-color:#fca5a5;
+    background:#fff7f7;
 }
 
 .file-group input[type=file]{
-    flex:1;
-    min-width:0;
+    width:100%;
     border:1px solid var(--line);
     border-radius:14px;
     padding:14px 12px;
     background:#f8fbff;
-}
-
-.small-camera-btn{
-    min-width:56px;
-    height:56px;
-    border:none;
-    border-radius:14px;
-    background:linear-gradient(135deg, var(--primary), #35a2ff);
-    color:#fff;
-    font-size:18px;
-    cursor:pointer;
-    box-shadow:0 10px 20px rgba(31,143,255,0.18);
-}
-
-.small-camera-btn:hover{
-    background:linear-gradient(135deg, var(--primary-dark), #1f8fff);
-}
-
-.preview-img{
-    width:100%;
-    max-width:380px;
-    height:240px;
-    object-fit:cover;
-    border-radius:16px;
-    border:2px solid #60a5fa;
-    display:none;
-    margin:12px auto 0;
-    box-shadow:0 10px 24px rgba(31,143,255,0.10);
 }
 
 .face-actions{
@@ -1011,24 +1193,6 @@ body{
     border-color:#86efac;
 }
 
-.toggle-eye{
-    position:absolute;
-    top:50%;
-    transform:translateY(-50%);
-    <?= ($dir === 'rtl') ? 'left:14px;' : 'right:14px;' ?>
-    width:22px;
-    height:22px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    cursor:pointer;
-    color:#6b7c93;
-    user-select:none;
-}
-
-.toggle-eye i{
-    font-size:18px;
-}
 .links{
     text-align:center;
     margin-top:18px;
@@ -1046,10 +1210,16 @@ body{
     text-decoration:underline;
 }
 
-@media (max-width: 980px){
+@media(max-width:980px){
+    body{
+        padding:20px 12px;
+    }
+
     .page-shell{
         grid-template-columns:1fr;
         gap:18px;
+        max-width:620px;
+        margin:0 auto;
     }
 
     .hero-panel{
@@ -1058,16 +1228,21 @@ body{
 
     .register-card{
         max-width:620px;
+        justify-self:center;
+        margin:0 auto;
+    }
+
+    .hero-features{
+        grid-template-columns:1fr;
     }
 }
-
-@media (max-width: 700px){
+@media(max-width:700px){
     .grid-2{
         grid-template-columns:1fr;
     }
 }
 
-@media (max-width: 560px){
+@media(max-width:560px){
     body{
         padding:18px 12px;
     }
@@ -1077,11 +1252,6 @@ body{
         border-radius:22px;
     }
 
-    .lang-toggle{
-        top:14px;
-        <?= ($dir === 'rtl') ? 'left' : 'right' ?>: 14px;
-    }
-
     .brand-wrap{
         flex-direction:column;
         gap:10px;
@@ -1089,52 +1259,73 @@ body{
     }
 
     .brand-text h1{
-        font-size:18px;
+        white-space:normal;
+        font-size:22px;
     }
 
-    .face-actions{
-        flex-direction:column;
+    .face-box{
+        height:230px;
     }
 }
+<?php if ($lang === 'ar'): ?>
+.hero-panel,
+.hero-content,
+.hero-title,
+.hero-text,
+.feature-item,
+.feature-item h4,
+.feature-item p {
+    direction: rtl;
+    text-align: right;
+}
+
+.feature-item {
+    flex-direction: row-reverse;
+}
+
+.eyebrow {
+    margin-left: 0;
+    margin-right: auto;
+}
+<?php endif; ?>
 </style>
 </head>
 <body>
 <div class="page-shell">
-    <section class="hero-panel">
+<section class="hero-panel">
+    <div class="hero-content">
+
         <div class="eyebrow">
-            <span>🩺</span>
-            <span><?= ($lang === 'ar') ? 'تجربة تسجيل احترافية وآمنة' : 'A premium and secure registration experience' ?></span>
+            <i class="fa-solid fa-shield-heart"></i>
+            <?= htmlspecialchars($hero['badge'][$lang], ENT_QUOTES, 'UTF-8') ?>
         </div>
 
         <h2 class="hero-title">
-            <?= ($lang === 'ar')
-                ? 'ابدأ رحلتك الطبية بحساب موثوق وتجربة تسجيل أنيقة'
-                : 'Start your healthcare journey with a trusted account and a refined registration flow' ?>
+            <?= htmlspecialchars($hero['title'][$lang], ENT_QUOTES, 'UTF-8') ?>
         </h2>
 
         <p class="hero-text">
-            <?= ($lang === 'ar')
-                ? 'أنشئ حسابك للوصول إلى خدمات المستشفى، إدارة المواعيد، والاستفادة من تسجيل الدخول بالتعرف على الوجه في تجربة حديثة وآمنة.'
-                : 'Create your account to access hospital services, manage appointments, and benefit from face recognition login in a modern secure flow.' ?>
+            <?= htmlspecialchars($hero['desc'][$lang], ENT_QUOTES, 'UTF-8') ?>
         </p>
 
-        <div class="hero-points">
-            <div class="point-card">
-                <div class="point-title"><?= ($lang === 'ar') ? 'تسجيل آمن' : 'Secure onboarding' ?></div>
-                <div class="point-text"><?= ($lang === 'ar') ? 'تجربة تسجيل أكثر أمانًا مع التحقق من كلمة المرور ودعم مسح الوجه الموجّه.' : 'A safer registration flow with password validation and guided face scan support.' ?></div>
-            </div>
-
-            <div class="point-card">
-                <div class="point-title"><?= ($lang === 'ar') ? 'وصول أسرع' : 'Smart access' ?></div>
-                <div class="point-text"><?= ($lang === 'ar') ? 'يتم التقاط الوجه من عدة زوايا لتحسين دقة تسجيل الدخول لاحقًا.' : 'Multiple face angles are captured to improve recognition accuracy later.' ?></div>
-            </div>
-
-            <div class="point-card">
-                <div class="point-title"><?= ($lang === 'ar') ? 'إرسال بيانات الحساب' : 'Credential email' ?></div>
-                <div class="point-text"><?= ($lang === 'ar') ? 'بعد إنشاء الحساب سيتم إرسال اسم المستخدم وكلمة المرور إلى البريد الإلكتروني المُدخل.' : 'After registration, the username and password will be sent to the entered email.' ?></div>
-            </div>
+        <div class="hero-features">
+            <?php foreach ($hero['features'] as $feature): ?>
+                <div class="feature-item">
+                    <i class="fa-solid <?= htmlspecialchars($feature['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
+                    <div>
+                        <h4>
+                            <?= htmlspecialchars($lang === 'ar' ? $feature['title_ar'] : $feature['title_en'], ENT_QUOTES, 'UTF-8') ?>
+                        </h4>
+                        <p>
+                            <?= htmlspecialchars($lang === 'ar' ? $feature['desc_ar'] : $feature['desc_en'], ENT_QUOTES, 'UTF-8') ?>
+                        </p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
         </div>
-    </section>
+
+    </div>
+</section>
 
     <section class="register-card">
         <div class="lang-toggle">
@@ -1143,7 +1334,9 @@ body{
         </div>
 
         <div class="brand-wrap">
-            <div class="brand-badge">🏥</div>
+            <div class="brand-badge">
+                <img src="assets/Cairo_hospitals1.png" alt="Cairo Hospitals">
+            </div>
             <div class="brand-text">
                 <h1><?= ($lang === 'ar') ? 'مستشفيات القاهرة' : 'Cairo Hospitals' ?></h1>
             </div>
@@ -1159,141 +1352,174 @@ body{
             <div class="notice"><?= htmlspecialchars($success_notice) ?></div>
         <?php endif; ?>
 
-       <form method="POST" enctype="multipart/form-data" id="registerForm">
-
-    <div class="grid-2">
-        <div class="form-group">
-            <label class="field-label"><?= ($lang === 'ar') ? 'الاسم الأول' : 'First Name' ?></label>
-            <div class="input-wrap">
-                <span class="icon">👤</span>
-                <input class="form-input" type="text" name="first_name" required>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label class="field-label"><?= ($lang === 'ar') ? 'اسم العائلة' : 'Last Name' ?></label>
-            <div class="input-wrap">
-                <span class="icon">👤</span>
-                <input class="form-input" type="text" name="last_name" required>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid-2">
-        <div class="form-group">
-            <label class="field-label"><?= htmlspecialchars($t['username']) ?></label>
-            <div class="input-wrap">
-                <span class="icon">👤</span>
-                <input class="form-input" type="text" name="username" required>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
-            <div class="input-wrap">
-                <span class="icon">🪪</span>
-                <input class="form-input" type="text" name="national_id" maxlength="14" required>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid-2">
-       <div class="form-group">
-    <label class="field-label"><?= htmlspecialchars($t['password']) ?></label>
-    <div class="input-wrap">
-        <span class="icon">🔒</span>
-        <input class="form-input" type="password" name="password" id="password" required>
-        <span class="toggle-eye" onclick="togglePassword('password', this)">
-            <i class="fa-regular fa-eye"></i>
-        </span>
-    </div>
-</div>
-       <div class="form-group">
-    <label class="field-label"><?= htmlspecialchars($t['confirm']) ?></label>
-    <div class="input-wrap">
-        <span class="icon">✅</span>
-        <input class="form-input" type="password" name="confirm_password" id="confirm_password" required>
-        <span class="toggle-eye" onclick="togglePassword('confirm_password', this)">
-            <i class="fa-regular fa-eye"></i>
-        </span>
-    </div>
-</div>
-    </div>
-
-            <div class="form-group">
-    <label class="field-label"><?= htmlspecialchars($t['nid_photo']) ?></label>
-
-    <div class="file-group">
-        <input type="file" name="nid_photo" id="nidFile" accept="image/*" required>
-    </div>
-
-    <div class="helper-line">
-        <?= ($lang === 'ar') ? 'ارفعي صورة بطاقة واضحة.' : 'Upload a clear image of your National ID.' ?>
-    </div>
-</div>
+        <form method="POST" enctype="multipart/form-data" id="registerForm" novalidate>
             <div class="grid-2">
-                <div class="form-group">
+                <div class="form-group <?= !empty($fieldErrors['first_name']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['first_name']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-user icon"></i>
+                        <input class="form-input" type="text" name="first_name" id="first_name" value="<?= old_value('first_name', $old) ?>" required>
+                    </div>
+                    <?= field_error('first_name', $fieldErrors) ?>
+                    <div class="field-error client-error" id="first_name_error"></div>
+                </div>
+
+                <div class="form-group <?= !empty($fieldErrors['last_name']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['last_name']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-user icon"></i>
+                        <input class="form-input" type="text" name="last_name" id="last_name" value="<?= old_value('last_name', $old) ?>" required>
+                    </div>
+                    <?= field_error('last_name', $fieldErrors) ?>
+                    <div class="field-error client-error" id="last_name_error"></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group <?= !empty($fieldErrors['username']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['username']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-user-shield icon"></i>
+                        <input class="form-input" type="text" name="username" id="username" value="<?= old_value('username', $old) ?>" required>
+                    </div>
+                    <?= field_error('username', $fieldErrors) ?>
+                    <div class="field-error client-error" id="username_error"></div>
+                </div>
+
+                <div class="form-group <?= !empty($fieldErrors['national_id']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-id-card icon"></i>
+                       <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" value="<?= old_value('national_id', $old) ?>" required>
+                    </div>
+                    <?= field_error('national_id', $fieldErrors) ?>
+                    <div class="field-error client-error" id="national_id_error"></div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group <?= !empty($fieldErrors['password']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['password']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-lock icon"></i>
+                        <input class="form-input" type="password" name="password" id="password" required minlength="8">
+                        <span class="toggle-eye" onclick="togglePassword('password', this)">
+                            <i class="fa-regular fa-eye"></i>
+                        </span>
+                    </div>
+                    <div class="password-hint">
+                        <?= ($lang === 'ar') ? '8 أحرف على الأقل، حرف كبير، حرف صغير، رقم ورمز خاص.' : 'Minimum 8 characters, uppercase, lowercase, number and special character.' ?>
+                    </div>
+                    <?= field_error('password', $fieldErrors) ?>
+                    <div class="field-error client-error" id="password_error"></div>
+                </div>
+
+                <div class="form-group <?= !empty($fieldErrors['confirm_password']) ? 'has-error' : '' ?>">
+                    <label class="field-label"><?= htmlspecialchars($t['confirm']) ?></label>
+                    <div class="input-wrap">
+                        <i class="fa-solid fa-lock icon"></i>
+                        <input class="form-input" type="password" name="confirm_password" id="confirm_password" required>
+                        <span class="toggle-eye" onclick="togglePassword('confirm_password', this)">
+                            <i class="fa-regular fa-eye"></i>
+                        </span>
+                    </div>
+                    <?= field_error('confirm_password', $fieldErrors) ?>
+                    <div class="field-error client-error" id="confirm_password_error"></div>
+                </div>
+            </div>
+
+            <div class="form-group <?= !empty($fieldErrors['nid_photo']) ? 'has-error' : '' ?>">
+                <label class="field-label"><?= htmlspecialchars($t['nid_photo']) ?></label>
+                <div class="file-group">
+                    <input type="file" name="nid_photo" id="nid_photo" accept="image/*" <?= empty($old['national_id_photo'] ?? '') ? 'required' : '' ?>>
+                    <input type="hidden" name="old_national_id_photo" id="old_national_id_photo" value="<?= htmlspecialchars($old['national_id_photo'] ?? '') ?>">
+                    <?php if (!empty($old['national_id_photo'] ?? '')): ?>
+                        <small style="color: green; font-weight: 600; display: block; margin-top: 8px;"><?= ($lang === 'ar') ? 'تم رفع صورة البطاقة بالفعل.' : 'National ID photo already uploaded.' ?></small>
+                    <?php endif; ?>
+                </div>
+                <div class="helper-line"><?= ($lang === 'ar') ? 'ارفعي صورة بطاقة واضحة.' : 'Upload a clear image of your National ID.' ?></div>
+                <?= field_error('nid_photo', $fieldErrors) ?>
+                <div class="field-error client-error" id="nid_photo_error"></div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group <?= !empty($fieldErrors['gender']) ? 'has-error' : '' ?>">
                     <label class="field-label"><?= htmlspecialchars($t['gender']) ?></label>
-                    <select class="form-select" name="gender" required>
+                    <select class="form-select" name="gender" id="gender" required>
                         <option value=""><?= htmlspecialchars($t['select_gender']) ?></option>
-                        <option value="Male"><?= ($lang === 'ar') ? 'ذكر' : 'Male' ?></option>
-                        <option value="Female"><?= ($lang === 'ar') ? 'أنثى' : 'Female' ?></option>
+                        <option value="Male" <?= (($old['gender'] ?? '') === 'Male') ? 'selected' : '' ?>><?= ($lang === 'ar') ? 'ذكر' : 'Male' ?></option>
+                        <option value="Female" <?= (($old['gender'] ?? '') === 'Female') ? 'selected' : '' ?>><?= ($lang === 'ar') ? 'أنثى' : 'Female' ?></option>
                     </select>
+                    <?= field_error('gender', $fieldErrors) ?>
+                    <div class="field-error client-error" id="gender_error"></div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group <?= !empty($fieldErrors['governorate']) ? 'has-error' : '' ?>">
                     <label class="field-label"><?= htmlspecialchars($t['governorate']) ?></label>
-                    <select class="form-select" name="governorate" required>
+                    <select class="form-select" name="governorate" id="governorate" required>
                         <option value=""><?= htmlspecialchars($t['select_governorate']) ?></option>
-                        <option value="Cairo"><?= ($lang === 'ar') ? 'القاهرة' : 'Cairo' ?></option>
-                        <option value="Giza"><?= ($lang === 'ar') ? 'الجيزة' : 'Giza' ?></option>
-                        <option value="Alexandria"><?= ($lang === 'ar') ? 'الإسكندرية' : 'Alexandria' ?></option>
-                        <option value="Qalyubia"><?= ($lang === 'ar') ? 'القليوبية' : 'Qalyubia' ?></option>
-                        <option value="Dakahlia"><?= ($lang === 'ar') ? 'الدقهلية' : 'Dakahlia' ?></option>
+                        <?php
+                        $govs = ['Cairo','Giza','Alexandria','Qalyubia','Dakahlia'];
+                        foreach ($govs as $gov):
+                        ?>
+                            <option value="<?= $gov ?>" <?= (($old['governorate'] ?? '') === $gov) ? 'selected' : '' ?>><?= $gov ?></option>
+                        <?php endforeach; ?>
                     </select>
+                    <?= field_error('governorate', $fieldErrors) ?>
+                    <div class="field-error client-error" id="governorate_error"></div>
                 </div>
             </div>
 
             <div class="grid-2">
-                <div class="form-group">
+                <div class="form-group <?= !empty($fieldErrors['birthdate']) ? 'has-error' : '' ?>">
                     <label class="field-label"><?= htmlspecialchars($t['birthdate']) ?></label>
-                    <input class="form-input" type="date" name="birthdate" max="<?= date('Y-m-d') ?>" required style="padding:0 16px;">
+                    <input class="form-input" type="date" name="birthdate" id="birthdate" max="<?= date('Y-m-d') ?>" value="<?= old_value('birthdate', $old) ?>" required style="padding:0 16px;">
+                    <?= field_error('birthdate', $fieldErrors) ?>
+                    <div class="field-error client-error" id="birthdate_error"></div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group <?= !empty($fieldErrors['contact_number']) ? 'has-error' : '' ?>">
                     <label class="field-label"><?= htmlspecialchars($t['phone']) ?></label>
                     <div class="input-wrap">
-                        <span class="icon">📞</span>
-                        <input class="form-input" type="text" name="contact_number" required>
+                        <i class="fa-solid fa-phone icon"></i>
+                        <input class="form-input" type="text" name="contact_number" id="contact_number" value="<?= old_value('contact_number', $old) ?>" required>
                     </div>
+                    <?= field_error('contact_number', $fieldErrors) ?>
+                    <div class="field-error client-error" id="contact_number_error"></div>
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group <?= !empty($fieldErrors['email']) ? 'has-error' : '' ?>">
                 <label class="field-label"><?= htmlspecialchars($t['email']) ?></label>
                 <div class="input-wrap">
-                    <span class="icon">✉️</span>
-                    <input class="form-input" type="email" name="email" required>
+                    <i class="fa-solid fa-envelope icon"></i>
+                    <input class="form-input" type="email" name="email" id="email" value="<?= old_value('email', $old) ?>" required>
                 </div>
+                <?= field_error('email', $fieldErrors) ?>
+                <div class="field-error client-error" id="email_error"></div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group <?= !empty($fieldErrors['address']) ? 'has-error' : '' ?>">
                 <label class="field-label"><?= htmlspecialchars($t['address']) ?></label>
-                <textarea class="form-textarea" name="address" required></textarea>
+                <textarea class="form-textarea" name="address" id="address" required><?= old_value('address', $old) ?></textarea>
+                <?= field_error('address', $fieldErrors) ?>
+                <div class="field-error client-error" id="address_error"></div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group <?= !empty($fieldErrors['face_images_json']) ? 'has-error' : '' ?>">
                 <label class="field-label"><?= htmlspecialchars($t['face_scan']) ?></label>
 
                 <div class="face-actions">
-                    <button type="button" class="btn-main" id="openFaceCameraBtn"><?= htmlspecialchars($t['open_face_camera']) ?></button>
-                    <button type="button" class="btn-soft" id="startFaceScanBtn" style="display:none;"><?= htmlspecialchars($t['start_face_scan']) ?></button>
+                    <button type="button" class="btn-main" id="openFaceCameraBtn">
+                        <i class="fa-solid fa-camera"></i> <?= htmlspecialchars($t['open_face_camera']) ?>
+                    </button>
+                    <button type="button" class="btn-soft" id="startFaceScanBtn" style="display:none;">
+                        <i class="fa-solid fa-face-smile"></i> <?= htmlspecialchars($t['start_face_scan']) ?>
+                    </button>
                 </div>
 
                 <div class="helper-line">
-                    <?= ($lang === 'ar')
-                        ? 'ضعي الوجه داخل الإطار الأخضر. سيتم التقاط صورتين لكل زاوية: الأمام ثم اليمين ثم اليسار.'
-                        : 'Place your face inside the green frame. Two photos will be captured for each angle: front, then right, then left.' ?>
+                    <?= ($lang === 'ar') ? 'ضعي الوجه داخل الإطار الأخضر. سيتم التقاط صورتين لكل زاوية: الأمام ثم اليمين ثم اليسار.' : 'Place your face inside the green frame. Two photos will be captured for each angle: front, then right, then left.' ?>
                 </div>
 
                 <div class="face-box" id="faceBox">
@@ -1311,9 +1537,13 @@ body{
                 <div class="counter-box" id="faceCounter"></div>
                 <div class="face-status" id="faceStatus"></div>
                 <input type="hidden" name="face_images_json" id="face_images_json">
+                <?= field_error('face_images_json', $fieldErrors) ?>
+                <div class="field-error client-error" id="face_images_json_error"></div>
             </div>
 
-            <button type="submit" class="btn-submit"><?= htmlspecialchars($t['register']) ?></button>
+            <button type="submit" class="btn-submit">
+                <i class="fa-solid fa-user-plus"></i> <?= htmlspecialchars($t['register']) ?>
+            </button>
 
             <div class="links">
                 <a href="index.php"><?= htmlspecialchars($t['back']) ?></a>
@@ -1323,6 +1553,55 @@ body{
 </div>
 
 <script>
+/* =========================
+   Inline field errors
+========================= */
+const messages = {
+    required: <?= json_encode($t['error_fill']) ?>,
+    password: <?= json_encode($t['error_invalid']) ?>,
+    confirm: <?= json_encode($t['error_match']) ?>,
+    nid: <?= json_encode($t['error_nid']) ?>,
+    email: <?= json_encode($t['error_email']) ?>,
+    birthdate: <?= json_encode($t['error_birthdate']) ?>,
+    face: <?= json_encode($t['face_required']) ?>
+};
+
+function setError(fieldId, message){
+    const field = document.getElementById(fieldId);
+    const errorBox = document.getElementById(fieldId + '_error');
+    if(field){ field.classList.add('invalid'); }
+    if(errorBox){ errorBox.textContent = message; }
+}
+
+function clearError(fieldId){
+    const field = document.getElementById(fieldId);
+    const errorBox = document.getElementById(fieldId + '_error');
+    if(field){ field.classList.remove('invalid'); }
+    if(errorBox){ errorBox.textContent = ''; }
+}
+
+function togglePassword(inputId, el){
+    const input = document.getElementById(inputId);
+    const icon = el.querySelector("i");
+
+    if(input.type === "password"){
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+    }else{
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+    }
+}
+
+['first_name','last_name','username','national_id','password','confirm_password','gender','governorate','birthdate','contact_number','email','address','nid_photo'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){
+        el.addEventListener('input', () => clearError(id));
+        el.addEventListener('change', () => clearError(id));
+    }
+});
 
 /* =========================
    FACE CAMERA - Guided Angles
@@ -1342,9 +1621,9 @@ let capturedFaces = [];
 let scanRunning = false;
 
 const angleSteps = [
-    { key: 'front', label: '<?= addslashes($t['face_front']) ?>' },
-    { key: 'right', label: '<?= addslashes($t['face_right']) ?>' },
-    { key: 'left',  label: '<?= addslashes($t['face_left']) ?>' }
+    { key: 'front', label: <?= json_encode($t['face_front']) ?> },
+    { key: 'right', label: <?= json_encode($t['face_right']) ?> },
+    { key: 'left',  label: <?= json_encode($t['face_left']) ?> }
 ];
 
 const PHOTOS_PER_ANGLE = 2;
@@ -1353,9 +1632,7 @@ const TOTAL_REQUIRED = angleSteps.length * PHOTOS_PER_ANGLE;
 function setActiveAngle(angleKey) {
     angleBadges.forEach(badge => {
         badge.classList.remove('active');
-        if (badge.dataset.angle === angleKey) {
-            badge.classList.add('active');
-        }
+        if (badge.dataset.angle === angleKey) badge.classList.add('active');
     });
 }
 
@@ -1369,9 +1646,7 @@ function markAngleDone(angleKey) {
 }
 
 function resetAngleBadges() {
-    angleBadges.forEach(badge => {
-        badge.classList.remove('active', 'done');
-    });
+    angleBadges.forEach(badge => badge.classList.remove('active', 'done'));
 }
 
 function sleep(ms) {
@@ -1382,21 +1657,19 @@ function captureFrame(angleKey) {
     const ctx = faceCanvas.getContext('2d');
     ctx.drawImage(faceVideo, 0, 0, faceCanvas.width, faceCanvas.height);
     const imageData = faceCanvas.toDataURL('image/jpeg', 0.9);
-    capturedFaces.push({
-        angle: angleKey,
-        image: imageData
-    });
+    capturedFaces.push({ angle: angleKey, image: imageData });
     faceImagesInput.value = JSON.stringify(capturedFaces);
-    faceCounter.textContent = '<?= addslashes($t['face_progress']) ?> ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
+    faceCounter.textContent = <?= json_encode($t['face_progress']) ?> + ' ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
+    clearError('face_images_json');
 }
 
 async function countdownAndCapture(angleKey, angleLabel) {
     for (let sec = 3; sec >= 1; sec--) {
-        faceStatus.textContent = '<?= addslashes($t['face_step_move']) ?> ' + angleLabel + ' — ' + sec;
+        faceStatus.textContent = <?= json_encode($t['face_step_move']) ?> + ' ' + angleLabel + ' — ' + sec;
         await sleep(900);
     }
 
-    faceStatus.textContent = '<?= addslashes($t['face_hold_still']) ?>: ' + angleLabel;
+    faceStatus.textContent = <?= json_encode($t['face_hold_still']) ?> + ': ' + angleLabel;
 
     for (let i = 0; i < PHOTOS_PER_ANGLE; i++) {
         captureFrame(angleKey);
@@ -1417,6 +1690,7 @@ openFaceCameraBtn.addEventListener('click', async () => {
         faceCounter.textContent = '';
         resetAngleBadges();
         scanRunning = false;
+        clearError('face_images_json');
 
         faceStream = await navigator.mediaDevices.getUserMedia({
             video: { width: 640, height: 480, facingMode: "user" },
@@ -1431,11 +1705,11 @@ openFaceCameraBtn.addEventListener('click', async () => {
             faceCanvas.width = faceVideo.videoWidth || 640;
             faceCanvas.height = faceVideo.videoHeight || 480;
             await faceVideo.play();
-            faceStatus.textContent = '<?= addslashes($t['face_scan_ready']) ?>';
-            faceCounter.textContent = '<?= addslashes($t['face_samples_target']) ?>';
+            faceStatus.textContent = <?= json_encode($t['face_scan_ready']) ?>;
+            faceCounter.textContent = <?= json_encode($t['face_samples_target']) ?>;
         };
     } catch (err) {
-        faceStatus.textContent = '<?= addslashes($t['face_camera_error']) ?>';
+        setError('face_images_json', <?= json_encode($t['face_camera_error']) ?>);
         console.error(err);
     }
 });
@@ -1444,7 +1718,7 @@ startFaceScanBtn.addEventListener('click', async () => {
     if (scanRunning) return;
 
     if (!faceStream || !faceVideo.videoWidth) {
-        faceStatus.textContent = '<?= addslashes($t['camera_not_ready']) ?>';
+        setError('face_images_json', <?= json_encode($t['camera_not_ready']) ?>);
         return;
     }
 
@@ -1453,19 +1727,20 @@ startFaceScanBtn.addEventListener('click', async () => {
     faceImagesInput.value = '';
     faceCounter.textContent = '0/' + TOTAL_REQUIRED;
     resetAngleBadges();
+    clearError('face_images_json');
 
     for (const step of angleSteps) {
         setActiveAngle(step.key);
         await sleep(800);
         await countdownAndCapture(step.key, step.label);
         markAngleDone(step.key);
-        faceStatus.textContent = step.label + ' - <?= addslashes($t['face_angle_done']) ?>';
+        faceStatus.textContent = step.label + ' - ' + <?= json_encode($t['face_angle_done']) ?>;
         await sleep(800);
     }
 
     faceImagesInput.value = JSON.stringify(capturedFaces);
-    faceCounter.textContent = '<?= addslashes($t['face_progress']) ?> ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
-    faceStatus.textContent = '<?= addslashes($t['face_done']) ?>';
+    faceCounter.textContent = <?= json_encode($t['face_progress']) ?> + ' ' + capturedFaces.length + '/' + TOTAL_REQUIRED;
+    faceStatus.textContent = <?= json_encode($t['face_done']) ?>;
 
     if (faceStream) {
         faceStream.getTracks().forEach(track => track.stop());
@@ -1478,31 +1753,87 @@ startFaceScanBtn.addEventListener('click', async () => {
     scanRunning = false;
 });
 
+
+/* =========================
+   Submit validation with inline errors only
+========================= */
 document.getElementById('registerForm').addEventListener('submit', function(e) {
+    let hasError = false;
+    const requiredFields = ['first_name','last_name','username','national_id','password','confirm_password','gender','governorate','birthdate','contact_number','email','address'];
+    requiredFields.forEach(id => {
+        const el = document.getElementById(id);
+        clearError(id);
+        if (!el || !String(el.value || '').trim()) {
+            setError(id, messages.required);
+            hasError = true;
+        }
+    });
+
+    const nid = document.getElementById('national_id').value.trim();
+    if (nid && !/^\d{14}$/.test(nid)) {
+        setError('national_id', messages.nid);
+        hasError = true;
+    }
+
+    const password = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm_password').value;
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+
+    if (password && !passRegex.test(password)) {
+        setError('password', messages.password);
+        hasError = true;
+    }
+
+    if (password && confirm && password !== confirm) {
+        setError('confirm_password', messages.confirm);
+        hasError = true;
+    }
+
+    const email = document.getElementById('email').value.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setError('email', messages.email);
+        hasError = true;
+    }
+
+    const birthdate = document.getElementById('birthdate').value;
+    if (birthdate) {
+        const selected = new Date(birthdate);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        if (selected > today) {
+            setError('birthdate', messages.birthdate);
+            hasError = true;
+        }
+    }
+
+    const nidFile = document.getElementById('nid_photo');
+    const oldNidPhoto = document.getElementById('old_national_id_photo');
+    clearError('nid_photo');
+    if ((!nidFile.files || nidFile.files.length === 0) && (!oldNidPhoto || oldNidPhoto.value.trim() === '')) {
+        setError('nid_photo', messages.required);
+        hasError = true;
+    }
+
+    clearError('face_images_json');
     try {
         const parsed = JSON.parse(faceImagesInput.value || '[]');
         if (!Array.isArray(parsed) || parsed.length < TOTAL_REQUIRED) {
-            e.preventDefault();
-            alert('<?= addslashes($t['face_required']) ?>');
+            setError('face_images_json', messages.face);
+            hasError = true;
         }
     } catch (err) {
+        setError('face_images_json', messages.face);
+        hasError = true;
+    }
+
+    if (hasError) {
         e.preventDefault();
-        alert('<?= addslashes($t['face_required']) ?>');
+        const firstError = document.querySelector('.invalid, .field-error:not(:empty)');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
 });
-function togglePassword(inputId, eyeElement) {
-    const input = document.getElementById(inputId);
-    const icon = eyeElement.querySelector('i');
-
-    if (input.type === "password") {
-        input.type = "text";
-        icon.className = "fa-regular fa-eye-slash";
-    } else {
-        input.type = "password";
-        icon.className = "fa-regular fa-eye";
-    }
-}
 </script>
-
 </body>
 </html>

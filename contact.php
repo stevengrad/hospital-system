@@ -96,6 +96,7 @@ $text = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
 
     <style>
         * {
@@ -426,7 +427,27 @@ $text = [
             background: linear-gradient(135deg, #8effd8, #2dd4bf);
             transition: 0.25s ease;
         }
+.logo-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid rgba(255,255,255,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+}
 
+.logo-icon img {
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    border-radius: 14px;
+    display: block;
+}
         .send-btn:hover {
             transform: translateY(-2px);
         }
@@ -437,6 +458,7 @@ $text = [
             font-size: 13px;
             margin-top: 18px;
         }
+        
 
         @media (max-width: 900px) {
             .topbar {
@@ -482,9 +504,9 @@ $text = [
 
     <header class="topbar glass">
         <div class="brand">
-            <div class="brand-icon">
-                <i class="fa-solid fa-envelope-open-text"></i>
-            </div>
+           <div class="logo-icon">
+                 <img src="assets/Cairo_hospitals1.png?v=2" alt="Cairo Hospitals">
+</div>
             <div class="brand-text">
                 <h1><?= htmlspecialchars($text['app_name']) ?></h1>
                 <p><?= htmlspecialchars($text['page_title']) ?></p>
