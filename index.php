@@ -764,6 +764,5 @@ function togglePassword(eyeElement) {
     }
 }
 </script>
-
 </body>
 </html>

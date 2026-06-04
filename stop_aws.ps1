@@ -7,6 +7,7 @@ Write-Host "Stopping ECS Services..."
 aws ecs update-service --cluster $CLUSTER --service hospital-web-service --desired-count 0 --region $REGION
 aws ecs update-service --cluster $CLUSTER --service hospital-chatbot-service --desired-count 0 --region $REGION
 aws ecs update-service --cluster $CLUSTER --service hospital-FceDetection-task-service-akupo8cp --desired-count 0 --region $REGION
+aws ecs update-service --cluster $CLUSTER --service hospital-ocr-api-service-ts2g6l6c --desired-count 0  --region $REGION
 
 Write-Host "Stopping RDS..."
 
