@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
+import os
 import re
+from pathlib import Path
 from datetime import datetime
 from typing import Any
 
 from app.tools.lookup import find_branches_by_name, find_doctors_by_name
 from app.tools.availability import get_available_slots
 from app.tools.booking import book_appointment
+from app.ai.text_normalizer import normalize_for_chat, detect_language
 
 from app.tools.medications import (
     split_med_names,
@@ -18,7 +22,22 @@ from app.tools.symptoms import suggest_specialty_id
 from app.tools.specialty_booking import (
     get_specialty_by_id,
     list_branches_for_specialty,
+    list_doctors_for_specialty_in_branch,
+    get_doctor_names,
     get_specialty_slots,
+)
+from app.tools.offers import reply_for_offers
+from app.tools.drug_interactions import is_drug_interaction_question, reply_for_drug_interaction_question
+from app.tools.pharmacy_products import (
+    is_product_comparison_question,
+    is_product_recommendation_question,
+    is_product_order_request,
+    recommend_products,
+    compare_products,
+    find_products_by_name,
+    format_recommendations,
+    format_comparison,
+    create_pharmacy_order,
 )
 from app.tools.patient_context import (
     resolve_patient_context,
@@ -28,9 +47,62 @@ from app.tools.patient_context import (
     get_lab_results_for_patient,
 )
 
-# In-memory chat state (for demo / single-process).
-# If you run multiple workers, move this to Redis/DB.
+# In-memory + tiny file cache chat state. The file cache protects the booking flow
+# if PHP/Python session cookies change or uvicorn reloads while testing locally.
 CHAT_STATE: dict[str, dict] = {}
+_STATE_DIR = Path(os.getenv("CHATBOT_STATE_DIR", ".chat_state"))
+
+
+def _safe_chat_id(chat_id: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_\-:.]", "_", chat_id or "default")[:120]
+
+
+def _state_path(chat_id: str) -> Path:
+    return _STATE_DIR / f"{_safe_chat_id(chat_id)}.json"
+
+
+def _json_safe(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+def _load_chat_state(chat_id: str) -> dict:
+    cid = _safe_chat_id(chat_id)
+    if cid in CHAT_STATE:
+        return CHAT_STATE[cid]
+    path = _state_path(cid)
+    if path.exists():
+        try:
+            CHAT_STATE[cid] = json.loads(path.read_text(encoding="utf-8"))
+            return CHAT_STATE[cid]
+        except Exception:
+            pass
+    CHAT_STATE[cid] = {}
+    return CHAT_STATE[cid]
+
+
+def _save_chat_state(chat_id: str, st: dict) -> None:
+    cid = _safe_chat_id(chat_id)
+    CHAT_STATE[cid] = st
+    try:
+        _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        _state_path(cid).write_text(json.dumps(_json_safe(st), ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _clear_chat_state(chat_id: str) -> None:
+    cid = _safe_chat_id(chat_id)
+    CHAT_STATE[cid] = {}
+    try:
+        _state_path(cid).unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def _now_str(dt: datetime) -> str:
@@ -43,27 +115,49 @@ def _extract_after(text: str, key: str) -> str:
     return text.split(key, 1)[1].strip()
 
 
+def _normalize_digits(s: str) -> str:
+    """Convert Arabic/Persian digits to English digits and remove common invisible RTL marks."""
+    if s is None:
+        return ""
+    trans = str.maketrans({
+        "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4",
+        "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9",
+        "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4",
+        "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9",
+        "\u200e": "", "\u200f": "", "\u061c": "",
+    })
+    return str(s).translate(trans).strip()
+
+
 def _parse_int(s: str) -> int | None:
     try:
-        return int(s)
+        return int(_normalize_digits(s))
     except Exception:
         return None
 
 
 def _detect_branch_choice(t: str) -> int | None:
     """
-    Accept:
-      - "فرع 1"
-      - "branch 1"
-      - "1" (only if in choose-branch step)
+    Accept robust Arabic/English branch choices:
+      - "فرع 1" / "فرع١" / "فرع رقم 1"
+      - "branch 1" / "branch #1"
+      - "1" when the chat is already waiting for a branch choice
     """
-    m = re.search(r"(?:\bفرع\b|\bbranch\b)\s*(\d+)", t, flags=re.IGNORECASE)
+    msg = _normalize_digits(t)
+
+    # Direct numeric answer in the choose-branch step
+    if re.fullmatch(r"\s*\d+\s*", msg):
+        return _parse_int(msg)
+
+    # Arabic/English branch phrase with optional words/symbols between branch and number
+    m = re.search(r"(?:فرع|branch)\s*(?:رقم|number|no\.?|#)?\s*(\d+)", msg, flags=re.IGNORECASE)
     if m:
         return _parse_int(m.group(1))
 
-    m2 = re.fullmatch(r"\s*(\d+)\s*", t)
-    if m2:
-        return _parse_int(m2.group(1))
+    # Last fallback: if the message contains exactly one number, use it as the branch choice
+    nums = re.findall(r"\d+", msg)
+    if len(nums) == 1:
+        return _parse_int(nums[0])
 
     return None
 
@@ -71,13 +165,13 @@ def _detect_branch_choice(t: str) -> int | None:
 def _detect_book_choice(t: str) -> int | None:
     """
     Accept:
-      - احجز 3
-      - book 3
+      - احجز 3 / احجز رقم 3
+      - book 3 / book #3
       - 3
     """
-    msg = (t or "").strip()
+    msg = _normalize_digits(t)
 
-    m = re.search(r"(?:احجز|book)\s*(\d+)", msg, flags=re.IGNORECASE)
+    m = re.search(r"(?:احجز|book)\s*(?:رقم|number|no\.?|#)?\s*(\d+)", msg, flags=re.IGNORECASE)
     if m:
         return _parse_int(m.group(1))
 
@@ -87,8 +181,58 @@ def _detect_book_choice(t: str) -> int | None:
     return None
 
 
+def _detect_doctor_choice(t: str) -> int | None:
+    """
+    Accept doctor selection after the bot lists doctors:
+      - دكتور 1 / دكتور رقم 1
+      - doctor 1 / dr 1
+      - 1 when the chat is already waiting for doctor choice
+    """
+    msg = _normalize_digits(t)
+
+    if re.fullmatch(r"\s*\d+\s*", msg):
+        return _parse_int(msg)
+
+    m = re.search(r"(?:دكتور|طبيب|doctor|dr\.?)\s*(?:رقم|number|no\.?|#)?\s*(\d+)", msg, flags=re.IGNORECASE)
+    if m:
+        return _parse_int(m.group(1))
+
+    nums = re.findall(r"\d+", msg)
+    if len(nums) == 1:
+        return _parse_int(nums[0])
+
+    return None
+
+
+def _doctor_display_name(d: dict) -> str:
+    return (
+        d.get("doctor_name")
+        or d.get("FullName")
+        or d.get("Name")
+        or d.get("DoctorName")
+        or f"Doctor {d.get('DoctorID') or d.get('EmployeeID') or ''}"
+    ).strip()
+
+
+def _prepare_doctors_for_display(doctors: list[dict]) -> list[dict]:
+    """Attach readable doctor names and normalize ids for frontend/state."""
+    if not doctors:
+        return []
+    ids = [int(d.get("DoctorID") or d.get("EmployeeID")) for d in doctors if d.get("DoctorID") or d.get("EmployeeID")]
+    names = get_doctor_names(ids)
+    prepared = []
+    for d in doctors:
+        dd = dict(d)
+        did = int(dd.get("DoctorID") or dd.get("EmployeeID"))
+        dd["DoctorID"] = did
+        dd["doctor_id"] = did
+        dd["doctor_name"] = names.get(did, _doctor_display_name(dd))
+        prepared.append(dd)
+    return prepared
+
+
 def _detect_lang(text: str) -> str:
-    return "ar" if re.search(r"[\u0600-\u06FF]", text or "") else "en"
+    return detect_language(text)
 
 
 def _is_booking_start(t: str) -> bool:
@@ -112,6 +256,166 @@ def _is_booking_start(t: str) -> bool:
             "حجز",
         ]
     )
+
+
+
+def _norm_ar_en(text: str) -> str:
+    x = _normalize_digits(text or "").lower()
+    x = x.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+    return re.sub(r"\s+", " ", x).strip()
+
+
+def _triage_has_red_flags(text: str) -> bool:
+    x = _norm_ar_en(text)
+
+    # Common negative answers should not be treated as red flags just because
+    # they mention the word itself, e.g. "مفيش تنميل" / "no numbness".
+    negated_red_flags = [
+        "مفيش تنميل", "مافيش تنميل", "لا يوجد تنميل", "لا تنميل",
+        "مفيش ضعف", "مافيش ضعف", "لا يوجد ضعف", "لا ضعف",
+        "مفيش حرارة", "مافيش حرارة", "لا يوجد حرارة", "لا حرارة", "مفيش سخونية", "مافيش سخونية",
+        "مفيش حادث", "مافيش حادث", "مفيش اصابة", "مافيش اصابة", "لا يوجد اصابة",
+        "مفيش فقدان تحكم", "مافيش فقدان تحكم", "لا يوجد فقدان تحكم",
+        "no numbness", "no weakness", "no fever", "no trauma", "no injury",
+        "no accident", "no loss of bladder", "no loss of bowel", "not severe",
+    ]
+    strong_positive_red_flags = [
+        "عندي تنميل", "في تنميل", "يوجد تنميل", "عندي ضعف", "في ضعف", "يوجد ضعف",
+        "عندي حرارة", "في حرارة", "عندي سخونية", "في سخونية", "حصل حادث", "وقعت", "اصابة",
+        "i have numbness", "i have weakness", "i have fever", "after trauma", "after injury", "after accident",
+    ]
+    if any(p in x for p in negated_red_flags) and not any(p in x for p in strong_positive_red_flags):
+        return False
+
+    red_flags = [
+        # Arabic red flags
+        "تنميل", "خدر", "ضعف", "مش قادر امشي", "مش قادرة امشي", "شلل",
+        "فقدان تحكم", "عدم تحكم", "بول", "براز", "سخونية", "حرارة", "حمى",
+        "حادث", "وقعت", "وقوع", "اصابة", "نزيف", "الم صدر", "ضيق نفس",
+        "الم شديد", "شديد جدا", "لا يحتمل", "مش محتمل", "قيء دم", "اغماء",
+        # English red flags
+        "numbness", "weakness", "cannot walk", "can not walk", "paralysis",
+        "loss of bladder", "loss of bowel", "fever", "trauma", "injury", "accident",
+        "bleeding", "chest pain", "shortness of breath", "severe pain", "unbearable", "fainting",
+    ]
+    return any(k in x for k in red_flags)
+
+
+def _triage_is_reassuring(text: str) -> bool:
+    x = _norm_ar_en(text)
+    reassuring = [
+        "لا", "لأ", "لا يوجد", "مفيش", "مافيش", "مش موجود", "لا مفيش", "لا لا",
+        "no", "nope", "none", "not severe", "no fever", "no numbness", "no weakness",
+        "خفيف", "متوسط", "محتمل", "normal", "mild", "moderate"
+    ]
+    # If the same message contains a red flag, red flag wins.
+    return any(k in x for k in reassuring) and not _triage_has_red_flags(text)
+
+
+def _triage_questions_for_specialty(specialty_name: str | None, lang: str) -> str:
+    spec = (specialty_name or "").lower()
+
+    if lang == "ar":
+        if "internal" in spec or "medicine" in spec:
+            return (
+                f"قبل ما أعرض مواعيد {specialty_name or 'الباطنة'}، محتاجة أتأكد من شدة الحالة.\n"
+                "هل عندك أي علامة من دول؟\n"
+                "- ألم بطن شديد جدًا أو مستمر\n"
+                "- قيء مستمر، قيء دم، أو براز أسود/دم\n"
+                "- حرارة عالية، دوخة شديدة، أو إغماء\n\n"
+                "اكتبي: لا مفيش، أو اكتبي العلامة الموجودة."
+            )
+        if "cardio" in spec:
+            return (
+                f"قبل ما أعرض مواعيد {specialty_name or 'القلب'}، محتاجة أتأكد من شدة الحالة.\n"
+                "هل في ألم صدر شديد، ضيق نفس، عرق شديد، أو إغماء؟\n\n"
+                "اكتبي: لا مفيش، أو اكتبي العلامة الموجودة."
+            )
+        if "neuro" in spec:
+            return (
+                f"قبل ما أعرض مواعيد {specialty_name or 'المخ والأعصاب'}، محتاجة أتأكد من شدة الحالة.\n"
+                "هل في صداع شديد مفاجئ، تشنجات، إغماء، ضعف/تنميل في طرف، أو زغللة شديدة؟\n\n"
+                "اكتبي: لا مفيش، أو اكتبي العلامة الموجودة."
+            )
+        return (
+            f"قبل ما أعرض مواعيد {specialty_name or 'التخصص المناسب'}، محتاجة أتأكد من شدة الحالة.\n"
+            "هل عندك أي علامة من دول؟\n"
+            "- ألم شديد جدًا أو بعد حادث/وقعة\n"
+            "- تنميل أو ضعف في الرجل/الذراع\n"
+            "- حرارة عالية أو أعراض شديدة مفاجئة\n\n"
+            "اكتبي: لا مفيش، أو اكتبي العلامة الموجودة."
+        )
+
+    if "internal" in spec or "medicine" in spec:
+        return (
+            f"Before I show {specialty_name or 'Internal Medicine'} slots, I need to check severity.\n"
+            "Do you have any of these red flags?\n"
+            "- very severe or persistent abdominal pain\n"
+            "- repeated vomiting, vomiting blood, or black/bloody stool\n"
+            "- high fever, severe dizziness, or fainting\n\n"
+            "Reply: no, or describe the red flag."
+        )
+    if "cardio" in spec:
+        return (
+            f"Before I show {specialty_name or 'Cardiology'} slots, I need to check severity.\n"
+            "Do you have severe chest pain, shortness of breath, heavy sweating, or fainting?\n\n"
+            "Reply: no, or describe the red flag."
+        )
+    if "neuro" in spec:
+        return (
+            f"Before I show {specialty_name or 'Neurology'} slots, I need to check severity.\n"
+            "Do you have sudden severe headache, seizures, fainting, weakness/numbness, or severe vision changes?\n\n"
+            "Reply: no, or describe the red flag."
+        )
+    return (
+        f"Before I show {specialty_name or 'the suitable specialty'} slots, I need to check severity.\n"
+        "Do you have any of these red flags?\n"
+        "- very severe pain or pain after trauma/fall\n"
+        "- numbness or weakness in a leg/arm\n"
+        "- high fever or sudden severe symptoms\n\n"
+        "Reply: no, or describe the red flag."
+    )
+
+
+def _begin_specialty_branch_choice(st: dict, chat_id: str, sid: int, lang: str) -> dict:
+    spec = get_specialty_by_id(int(sid))
+    branches = list_branches_for_specialty(int(sid))
+
+    if not branches:
+        return {
+            "intent": "no_branches_for_specialty",
+            "reply": "فهمت الأعراض، بس مش لاقي فروع فيها دكاترة للتخصص ده حاليًا." if lang == "ar" else "I understood the symptoms, but I cannot find branches with doctors for this specialty now.",
+            "data": {"specialty_id": sid, "specialty": spec},
+        }
+
+    st["pending_specialty_id"] = int(sid)
+    st["pending_branches"] = branches
+    st["pending_step"] = "choose_branch"
+    _save_chat_state(chat_id, st)
+
+    spec_name = spec["Name"] if spec else f"Specialty {sid}"
+    if lang == "ar":
+        lines = [
+            f"ده غالبًا يخص تخصص: {spec_name}.",
+            "اختاري الفرع اللي تحبي تحجزي فيه:",
+        ]
+        for i, b in enumerate(branches, start=1):
+            lines.append(f"{i}) {b['Name']}")
+        lines.append("\nاكتبي: فرع <رقم> (مثال: فرع 1)")
+    else:
+        lines = [
+            f"This most likely matches: {spec_name}.",
+            "Choose the branch you want to book in:",
+        ]
+        for i, b in enumerate(branches, start=1):
+            lines.append(f"{i}) {b['Name']}")
+        lines.append("\nType: branch <number> (example: branch 1)")
+
+    return {
+        "intent": "choose_branch",
+        "reply": "\n".join(lines),
+        "data": {"specialty": spec, "branches": branches},
+    }
 
 
 def _reply_medication_single(name: str, person: str):
@@ -202,25 +506,271 @@ def _reply_medication_multi(text: str):
     }
 
 
-def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) -> dict:
-    t = (text or "").strip()
-    lang = _detect_lang(t)
 
-    if not t:
+
+def _parse_quantity_from_text(text: str) -> int | None:
+    msg = _normalize_digits(text or "")
+    m = re.search(r"(?:كمية|quantity|qty|عدد)\s*(\d+)", msg, flags=re.IGNORECASE)
+    if m:
+        return _parse_int(m.group(1))
+    nums = re.findall(r"\d+", msg)
+    if nums:
+        # Use the first small number as quantity. Long numbers are probably phone numbers.
+        for n in nums:
+            try:
+                v = int(n)
+                if 1 <= v <= 50:
+                    return v
+            except Exception:
+                pass
+    return None
+
+
+def _select_product_from_message(text: str, products: list[dict]) -> dict | None:
+    msg = _normalize_digits(text or "").strip()
+    if products:
+        m = re.search(r"(?:اطلب|order|اوردر|اشتري)?\s*(?:رقم|number|#)?\s*(\d+)", msg, flags=re.IGNORECASE)
+        if m:
+            idx = _parse_int(m.group(1))
+            if idx is not None and 1 <= idx <= len(products):
+                return products[idx - 1]
+
+    # If user says yes/order it, choose the first available item, or first item if all out of stock.
+    if products and is_product_order_request(msg):
+        available = [p for p in products if int(p.get("quantity") or 0) > 0]
+        return available[0] if available else products[0]
+
+    found = find_products_by_name(msg, limit=3)
+    if found:
+        return found[0]
+    return None
+
+
+def _ask_for_product_order_details(product: dict, lang: str) -> dict:
+    q = int(product.get("quantity") or 0)
+    if lang == "en":
+        if q <= 0:
+            reply = (
+                f"{product['brand_name']} is out of stock right now. I can still save your request so the pharmacy follows up when available.\n"
+                "Please send quantity and phone/note, example: quantity 1 phone 010xxxxxxxx"
+            )
+        else:
+            reply = (
+                f"Okay, I can take an order request for {product['brand_name']}. Current stock: {q}.\n"
+                "Please send quantity and phone/note, example: quantity 1 phone 010xxxxxxxx"
+            )
+    else:
+        if q <= 0:
+            reply = (
+                f"{product['brand_name']} غير متوفر حاليًا. أقدر أسجل طلب متابعة للصيدلية لو حبيتي.\n"
+                "اكتبي الكمية ورقم التليفون/ملاحظة، مثال: الكمية 1 تليفون 010xxxxxxxx"
+            )
+        else:
+            reply = (
+                f"تمام، هسجل طلب أوردر لـ {product['brand_name']}. الكمية المتاحة حاليًا: {q}.\n"
+                "اكتبي الكمية ورقم التليفون/ملاحظة، مثال: الكمية 1 تليفون 010xxxxxxxx"
+            )
+    return {"intent": "pharmacy_order_details_needed", "reply": reply, "data": {"product": product}}
+
+
+def _complete_product_order(st: dict, chat_id: str, text: str, lang: str) -> dict:
+    product = st.get("pending_product_order")
+    if not product:
+        st["pending_step"] = None
+        _save_chat_state(chat_id, st)
+        return {
+            "intent": "pharmacy_order_missing_product",
+            "reply": "مش لاقية المنتج المختار. ابعتي الترشيح أو اسم المنتج تاني." if lang == "ar" else "I lost the selected product. Please send the product name again.",
+            "data": None,
+        }
+
+    qty = _parse_quantity_from_text(text) or 1
+    order = create_pharmacy_order(product, qty, customer_note=text, chat_id=chat_id)
+    st["pending_step"] = None
+    st["pending_product_order"] = None
+    st["last_pharmacy_order"] = order
+    _save_chat_state(chat_id, st)
+
+    if lang == "en":
+        reply = (
+            f"Done. I saved your pharmacy order request for {order['brand_name']} x {order['requested_quantity']}.\n"
+            "Status: pending pharmacy confirmation. Please wait for the pharmacy team to confirm availability and delivery/pickup details."
+        )
+    else:
+        reply = (
+            f"تمام، سجلت طلب الصيدلية: {order['brand_name']} × {order['requested_quantity']}.\n"
+            "الحالة: في انتظار تأكيد الصيدلية للكمية وطريقة الاستلام/التوصيل."
+        )
+    return {"intent": "pharmacy_order_created", "reply": reply, "data": {"order": order}}
+
+def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) -> dict:
+    raw_t = (text or "").strip()
+    norm = normalize_for_chat(raw_t)
+    t = norm.chat_text or raw_t
+    lang = norm.language
+
+    if not raw_t:
         return {
             "reply": "اكتب رسالتك." if lang == "ar" else "Type your message.",
             "data": None,
             "intent": "empty",
         }
 
-    st = CHAT_STATE.setdefault(chat_id, {})
+    chat_id = _safe_chat_id(chat_id or "web")
+    if t.lower() in {"ابدأ من جديد", "ابدا من جديد", "reset", "restart", "start over", "new chat"}:
+        _clear_chat_state(chat_id)
+        return {
+            "intent": "reset",
+            "reply": "تمام، بدأت محادثة جديدة. اكتبي الأعراض أو طلب الحجز من الأول." if lang == "ar" else "Done, I started a new chat. Send your symptoms or booking request again.",
+            "data": None,
+        }
+
+    st = _load_chat_state(chat_id)
 
     # sync patient_id into state if provided
     if patient_id is not None:
         st["patient_id"] = int(patient_id)
+        _save_chat_state(chat_id, st)
 
     # ------------------------------------------------------------
-    # 0) If we are waiting for PatientID to complete a booking
+    # 0) Branch choice must be handled before numeric booking / PatientID.
+    #    Otherwise a plain "1" while choosing a branch can be mistaken for
+    #    PatientID or appointment slot number.
+    # ------------------------------------------------------------
+    if st.get("pending_step") == "choose_branch":
+        choice = _detect_branch_choice(t)
+        branches = st.get("pending_branches") or []
+        sid = st.get("pending_specialty_id")
+
+        if choice is None or choice < 1 or choice > len(branches):
+            return {
+                "intent": "choose_branch",
+                "reply": f"اختاري رقم فرع صحيح (1 - {len(branches)}). اكتبي: فرع 1",
+                "data": {"branches": branches},
+            }
+
+        branch = branches[choice - 1]
+        branch_id = int(branch["BranchID"])
+
+        spec = get_specialty_by_id(int(sid))
+        doctors = _prepare_doctors_for_display(list_doctors_for_specialty_in_branch(int(sid), branch_id))
+
+        if not doctors:
+            return {
+                "intent": "no_doctors_for_specialty_branch",
+                "reply": f"مفيش دكاترة متاحين حاليًا في {branch['Name']} للتخصص ده. جرّبي فرع تاني.",
+                "data": {"branch": branch, "specialty_id": sid, "specialty": spec},
+            }
+
+        st["pending_step"] = "choose_doctor"
+        st["pending_branch"] = branch
+        st["pending_doctors"] = doctors
+        st["last_slots"] = []
+        st["pending_branches"] = None
+        _save_chat_state(chat_id, st)
+
+        spec_name = spec.get("Name") if spec else "التخصص المطلوب"
+        if lang == "en":
+            lines = [
+                f"In {branch['Name']}, the {spec_name} department has these doctors:",
+            ]
+            for i, d in enumerate(doctors, start=1):
+                fee = d.get("ConsultationFee")
+                extra = f" - fee: {fee}" if fee not in (None, "") else ""
+                lines.append(f"{i}) Dr. {_doctor_display_name(d)}{extra}")
+            lines.append("\nChoose a doctor number, for example: doctor 1")
+        else:
+            lines = [
+                f"في {branch['Name']}، قسم {spec_name} عندنا فيه الدكاترة دول:",
+            ]
+            for i, d in enumerate(doctors, start=1):
+                fee = d.get("ConsultationFee")
+                extra = f" - كشف: {fee}" if fee not in (None, "") else ""
+                lines.append(f"{i}) دكتور {_doctor_display_name(d)}{extra}")
+            lines.append("\nاختاري دكتور برقم. مثال: دكتور 1")
+
+        return {
+            "intent": "choose_doctor",
+            "reply": "\n".join(lines),
+            "data": {"specialty": spec, "branch": branch, "doctors": doctors},
+        }
+
+
+    # ------------------------------------------------------------
+    # 0.25) Doctor choice after branch selection.
+    #      New flow: symptoms -> specialty -> branch -> doctor -> slots -> book.
+    # ------------------------------------------------------------
+    if st.get("pending_step") == "choose_doctor":
+        choice = _detect_doctor_choice(t)
+        doctors = st.get("pending_doctors") or []
+        branch = st.get("pending_branch") or {}
+
+        if choice is None or choice < 1 or choice > len(doctors):
+            return {
+                "intent": "choose_doctor",
+                "reply": f"اختاري رقم دكتور صحيح (1 - {len(doctors)}). مثال: دكتور 1" if lang == "ar" else f"Choose a valid doctor number (1 - {len(doctors)}). Example: doctor 1",
+                "data": {"branch": branch, "doctors": doctors},
+            }
+
+        doctor = doctors[choice - 1]
+        doctor_id = int(doctor.get("DoctorID") or doctor.get("doctor_id") or doctor.get("EmployeeID"))
+        branch_id = int(branch.get("BranchID"))
+        doctor_name = _doctor_display_name(doctor)
+
+        from datetime import timedelta
+        slots = get_available_slots(
+            doctor_id=doctor_id,
+            branch_id=branch_id,
+            from_dt=datetime.now(),
+            to_dt=datetime.now() + timedelta(days=14),
+        )
+
+        if not slots:
+            return {
+                "intent": "no_slots",
+                "reply": f"مفيش مواعيد متاحة قريبًا للدكتور {doctor_name}. اختاري دكتور تاني من القائمة." if lang == "ar" else f"No near slots are available for Dr. {doctor_name}. Choose another doctor from the list.",
+                "data": {"doctor": doctor, "branch": branch, "doctors": doctors},
+            }
+
+        st["last_slots"] = [
+            {
+                "doctor_id": doctor_id,
+                "doctor_name": doctor_name,
+                "branch_id": branch_id,
+                "start": s.get("start").isoformat() if isinstance(s.get("start"), datetime) else s.get("start"),
+                "end": s.get("end").isoformat() if isinstance(s.get("end"), datetime) else s.get("end"),
+            }
+            for s in slots[:15]
+        ]
+        st["pending_step"] = None
+        st["pending_doctors"] = None
+        st["pending_branch"] = None
+        _save_chat_state(chat_id, st)
+
+        if lang == "en":
+            lines = [f"Available slots for Dr. {doctor_name} in {branch.get('Name', 'this branch')}:"]
+            for i, s in enumerate(slots[:15], start=1):
+                start = s.get("start")
+                start_str = _now_str(start) if isinstance(start, datetime) else str(start)
+                lines.append(f"{i}) {start_str}")
+            lines.append("\nType: book <number> (example: book 2)")
+        else:
+            lines = [f"المواعيد المتاحة للدكتور {doctor_name} في {branch.get('Name', 'الفرع')}:" ]
+            for i, s in enumerate(slots[:15], start=1):
+                start = s.get("start")
+                start_str = _now_str(start) if isinstance(start, datetime) else str(start)
+                lines.append(f"{i}) {start_str}")
+            lines.append("\nاكتبي: احجز <رقم> (مثال: احجز 2)")
+
+        return {
+            "intent": "doctor_slots",
+            "reply": "\n".join(lines),
+            "data": {"doctor": doctor, "branch": branch, "slots": st["last_slots"]},
+        }
+
+
+    # ------------------------------------------------------------
+    # 0.5) If we are waiting for PatientID to complete a booking
     # ------------------------------------------------------------
     if st.get("pending_step") == "need_patient_id":
         pid = patient_id
@@ -240,6 +790,7 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
 
         st["patient_id"] = pid
         st["pending_step"] = None
+        _save_chat_state(chat_id, st)
 
         pending = st.get("pending_booking_slot")
         if not pending:
@@ -250,22 +801,120 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
             }
 
         st["pending_booking_slot"] = None
+        _save_chat_state(chat_id, st)
         return _book_slot_with_patient(pid, pending)
 
     # ------------------------------------------------------------
-    # 1) Medication risks
+    # 0.75) Symptom severity triage before booking slots
     # ------------------------------------------------------------
-    if any(k in t.lower() for k in ["مخاطر", "تحذيرات", "أضرار", "اضرار", "warnings", "risks", "risk"]):
+    if st.get("pending_step") == "symptom_triage":
+        sid = st.get("pending_specialty_id")
+        if _triage_has_red_flags(t):
+            st["pending_step"] = None
+            _save_chat_state(chat_id, st)
+            return {
+                "intent": "symptom_triage_urgent",
+                "reply": (
+                    "في علامات محتاجة تقييم طبي سريع/طوارئ، خصوصًا لو الألم شديد أو مع تنميل/ضعف/حرارة/حادث. "
+                    "الأفضل تتواصلي مع الطوارئ أو طبيب فورًا. لو الحالة مستقرة وعايزة تكملي حجز عيادة اكتبي: متابعة الحجز"
+                    if lang == "ar" else
+                    "There are red flags that need urgent medical assessment, especially severe pain, numbness/weakness, fever, or trauma. "
+                    "Please contact emergency care or a doctor promptly. If stable and you still want clinic booking, type: continue booking"
+                ),
+                "data": {"specialty_id": sid, "red_flags": True},
+            }
+
+        if _triage_is_reassuring(t) or any(k in _norm_ar_en(t) for k in ["متابعة الحجز", "كمل", "continue booking", "continue"]):
+            st["pending_step"] = None
+            _save_chat_state(chat_id, st)
+            if sid is not None:
+                return _begin_specialty_branch_choice(st, chat_id, int(sid), lang)
+
+        spec = get_specialty_by_id(int(sid)) if sid is not None else None
+        return {
+            "intent": "symptom_triage",
+            "reply": _triage_questions_for_specialty(spec.get("Name") if spec else None, lang),
+            "data": {"specialty_id": sid},
+        }
+
+    # ------------------------------------------------------------
+    # 0.9) Pharmacy product recommendation / comparison / order flow
+    # ------------------------------------------------------------
+    if st.get("pending_step") == "pharmacy_choose_product":
+        products = st.get("last_product_recommendations") or []
+        selected = _select_product_from_message(t, products)
+        if not selected:
+            return {
+                "intent": "pharmacy_choose_product",
+                "reply": "اختاري رقم منتج من الترشيحات أو اكتبي اسم المنتج. مثال: اطلب رقم 1" if lang == "ar" else "Choose a product number from the recommendations or type the product name. Example: order 1",
+                "data": {"products": products},
+            }
+        st["pending_product_order"] = selected
+        st["pending_step"] = "pharmacy_order_details"
+        _save_chat_state(chat_id, st)
+        return _ask_for_product_order_details(selected, lang)
+
+    if st.get("pending_step") == "pharmacy_order_details":
+        return _complete_product_order(st, chat_id, t, lang)
+
+    # If the previous bot reply recommended products and user now says "order it".
+    if is_product_order_request(t) and st.get("last_product_recommendations"):
+        selected = _select_product_from_message(t, st.get("last_product_recommendations") or [])
+        if selected:
+            st["pending_product_order"] = selected
+            st["pending_step"] = "pharmacy_order_details"
+            _save_chat_state(chat_id, st)
+            return _ask_for_product_order_details(selected, lang)
+        st["pending_step"] = "pharmacy_choose_product"
+        _save_chat_state(chat_id, st)
+        return {
+            "intent": "pharmacy_choose_product",
+            "reply": "اختاري رقم المنتج اللي عايزة تطلبيه من آخر ترشيحات." if lang == "ar" else "Choose the product number you want to order from the last recommendations.",
+            "data": {"products": st.get("last_product_recommendations") or []},
+        }
+
+    if is_product_comparison_question(t):
+        items = compare_products(t)
+        if len(items) >= 2:
+            st["last_product_recommendations"] = items
+            _save_chat_state(chat_id, st)
+            return {
+                "intent": "product_comparison",
+                "reply": format_comparison(items, lang=lang),
+                "data": {"products": items},
+            }
+
+    if is_product_recommendation_question(t):
+        items = recommend_products(t, limit=5)
+        if items:
+            st["last_product_recommendations"] = items
+            _save_chat_state(chat_id, st)
+            return {
+                "intent": "product_recommendation",
+                "reply": format_recommendations(items, lang=lang),
+                "data": {"products": items},
+            }
+
+    # ------------------------------------------------------------
+    # 1) Appointment offers
+    # ------------------------------------------------------------
+    if any(k in t.lower() for k in ["offer", "offers", "discount", "package", "عرض", "عروض", "خصم", "باكدج", "باقة"]):
+        return reply_for_offers(t, st, lang=lang)
+
+    # ------------------------------------------------------------
+    # 1) Drug interaction / medication risks
+    # ------------------------------------------------------------
+    if is_drug_interaction_question(t):
         meds = split_med_names(t)
+        if len(meds) >= 2 or any(k in t.lower() for k in ["تعارض", "تداخل", "interaction", "interact", "safe with", "ينفع", "مع"]):
+            return reply_for_drug_interaction_question(t, lang=lang)
+
         if not meds:
             return {
                 "intent": "med_need_names",
                 "reply": "اكتبي أسماء الأدوية. مثال: مخاطر Aspirin و Ibuprofen",
                 "data": None,
             }
-
-        if len(meds) > 1:
-            return _reply_medication_multi(t)
 
         return _reply_medication_single(meds[0], "حضرتك")
 
@@ -299,6 +948,7 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
         if pid is None:
             st["pending_step"] = "need_patient_id"
             st["pending_booking_slot"] = chosen
+            _save_chat_state(chat_id, st)
             return {
                 "intent": "need_patient_id",
                 "reply": "لازم تدخلي PatientID عشان أعمل الحجز." if lang == "ar" else "You need to enter PatientID to make the booking.",
@@ -310,94 +960,30 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
     # ------------------------------------------------------------
     # 3) Symptom -> Specialty -> choose branch -> show slots -> book
     # ------------------------------------------------------------
-    if st.get("pending_step") == "choose_branch":
-        choice = _detect_branch_choice(t)
-        branches = st.get("pending_branches") or []
-        sid = st.get("pending_specialty_id")
-
-        if choice is None or choice < 1 or choice > len(branches):
-            return {
-                "intent": "choose_branch",
-                "reply": f"اختاري رقم فرع صحيح (1 - {len(branches)}). اكتبي: فرع 1",
-                "data": {"branches": branches},
-            }
-
-        branch = branches[choice - 1]
-        branch_id = int(branch["BranchID"])
-
-        slots = get_specialty_slots(
-            branch_id=branch_id,
-            specialty_id=int(sid),
-            get_available_slots_fn=get_available_slots,
-            days_ahead=14,
-            limit_total=15,
-        )
-
-        if not slots:
-            return {
-                "intent": "no_slots",
-                "reply": f"مفيش مواعيد متاحة قريبًا في {branch['Name']} للتخصص ده. جرّبي فرع تاني.",
-                "data": {"branch": branch, "specialty_id": sid},
-            }
-
-        st["last_slots"] = [
-            {
-                "doctor_id": s["doctor_id"],
-                "doctor_name": s.get("doctor_name"),
-                "branch_id": s["branch_id"],
-                "start": s.get("start").isoformat() if isinstance(s.get("start"), datetime) else s.get("start"),
-                "end": s.get("end").isoformat() if isinstance(s.get("end"), datetime) else s.get("end"),
-            }
-            for s in slots
-        ]
-
-        lines = [f"أقرب المواعيد المتاحة في {branch['Name']}:"]
-
-        for i, s in enumerate(slots, start=1):
-            start = s.get("start")
-            start_str = _now_str(start) if isinstance(start, datetime) else str(start)
-            doc_name = s.get("doctor_name") or f"{s['doctor_id']}"
-            lines.append(f"{i}) {start_str} - دكتور {doc_name}")
-
-        lines.append("\nاكتبي: احجز <رقم> (مثال: احجز 2)")
-        st["pending_step"] = None
-        st["pending_branches"] = None
-
-        return {
-            "intent": "specialty_slots",
-            "reply": "\n".join(lines),
-            "data": {"branch": branch, "slots": st["last_slots"]},
-        }
-
     sid = suggest_specialty_id(t)
     if sid is not None:
         spec = get_specialty_by_id(int(sid))
-        branches = list_branches_for_specialty(int(sid))
-
-        if not branches:
+        # Triage before showing slots. If the original symptom message already
+        # contains red flags, warn immediately. Otherwise ask a short safety check.
+        if _triage_has_red_flags(t):
             return {
-                "intent": "no_branches_for_specialty",
-                "reply": "فهمت الأعراض، بس مش لاقي فروع فيها دكاترة للتخصص ده حاليًا.",
-                "data": {"specialty_id": sid, "specialty": spec},
+                "intent": "symptom_triage_urgent",
+                "reply": (
+                    "الأعراض فيها علامة محتاجة تقييم سريع/طوارئ. لو في ألم شديد جدًا، تنميل/ضعف، حرارة عالية، أو إصابة/وقعة، الأفضل تتواصلي مع الطوارئ أو طبيب فورًا."
+                    if lang == "ar" else
+                    "Your symptoms include a red flag that may need urgent assessment. Severe pain, numbness/weakness, high fever, or trauma should be checked urgently."
+                ),
+                "data": {"specialty_id": sid, "specialty": spec, "red_flags": True},
             }
 
         st["pending_specialty_id"] = int(sid)
-        st["pending_branches"] = branches
-        st["pending_step"] = "choose_branch"
-
-        spec_name = spec["Name"] if spec else f"Specialty {sid}"
-        lines = [
-            f"ده غالبًا يخص تخصص: {spec_name}.",
-            "اختاري الفرع اللي تحبي تحجزي فيه:",
-        ]
-        for i, b in enumerate(branches, start=1):
-            lines.append(f"{i}) {b['Name']}")
-        lines.append("\nاكتبي: فرع <رقم> (مثال: فرع 1)")
-
+        st["pending_step"] = "symptom_triage"
+        _save_chat_state(chat_id, st)
+        spec_name = spec.get("Name") if spec else None
         return {
-            "intent": "choose_branch",
-            "reply": "\n".join(lines),
-            "data": {"specialty": spec, "branches": branches},
+            "intent": "symptom_triage",
+            "reply": _triage_questions_for_specialty(spec_name, lang),
+            "data": {"specialty_id": sid, "specialty": spec},
         }
 
     # ------------------------------------------------------------
@@ -453,6 +1039,8 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
             for s in slots[:15]
         ]
 
+        _save_chat_state(chat_id, st)
+
         lines = [f"أقرب المواعيد المتاحة للدكتور {doc_name} في {branch['Name']}:"]
 
         for i, s in enumerate(slots[:15], start=1):
@@ -468,7 +1056,17 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
         }
 
     # ------------------------------------------------------------
-    # 5) Fallback help
+    # 5) Do not send bare numbers/branch choices to RAG if state was lost.
+    # ------------------------------------------------------------
+    if _detect_branch_choice(t) is not None or _detect_book_choice(t) is not None:
+        return {
+            "intent": "lost_context",
+            "reply": "الرقم وصل، لكن حالة الحجز مش موجودة. اكتبي الأعراض من الأول أو اكتبي: ابدأ من جديد" if lang == "ar" else "I received the number, but the booking context is missing. Send your symptoms again or type: reset",
+            "data": None,
+        }
+
+    # ------------------------------------------------------------
+    # 6) Fallback help
     # ------------------------------------------------------------
     if lang == "en":
         return {

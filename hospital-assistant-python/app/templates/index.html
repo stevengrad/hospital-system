@@ -110,6 +110,40 @@
       return [];
     }
 
+    function getDoctorsFromResponse(data) {
+      if (data && data.data && Array.isArray(data.data.doctors)) return data.data.doctors;
+      if (data && Array.isArray(data.doctors)) return data.doctors;
+      if (data && data.data && data.data.data && Array.isArray(data.data.data.doctors)) return data.data.data.doctors;
+      return [];
+    }
+
+    function renderDoctorButtons(doctors) {
+      clearSlots();
+      if (!doctors || doctors.length === 0) return;
+
+      const title = document.createElement("div");
+      title.className = "slots-title";
+      title.textContent = "اختاري الدكتور:";
+      slotsContainer.appendChild(title);
+
+      const row = document.createElement("div");
+      row.className = "slots-row";
+      slotsContainer.appendChild(row);
+
+      doctors.forEach((d, idx) => {
+        const btnDoctor = document.createElement("button");
+        btnDoctor.type = "button";
+        btnDoctor.className = "slot-btn";
+        const name = d.doctor_name || d.FullName || d.Name || d.DoctorName || ("Doctor " + (idx + 1));
+        btnDoctor.textContent = (idx + 1) + ") " + name;
+        btnDoctor.onclick = () => {
+          input.value = "دكتور رقم " + (idx + 1);
+          send();
+        };
+        row.appendChild(btnDoctor);
+      });
+    }
+
     function renderSlotsButtons(slots) {
       clearSlots();
       if (!slots || slots.length === 0) return;
@@ -234,10 +268,13 @@
           patientInput.value = data.data.patient_id;
         }
 
+        const doctors = getDoctorsFromResponse(data);
         const slots = getSlotsFromResponse(data);
-        addDebug("DEBUG intent=" + (data ? data.intent : "null") + " slots=" + (slots ? slots.length : 0));
+        addDebug("DEBUG intent=" + (data ? data.intent : "null") + " doctors=" + (doctors ? doctors.length : 0) + " slots=" + (slots ? slots.length : 0));
 
-        if (slots && slots.length > 0) {
+        if (doctors && doctors.length > 0) {
+          renderDoctorButtons(doctors);
+        } else if (slots && slots.length > 0) {
           renderSlotsButtons(slots);
         }
 
