@@ -711,7 +711,93 @@ $text = [
             background: linear-gradient(135deg, #8effd8, #2dd4bf);
             transition: .25s ease;
         }
+.chat-tool-btn {
+    border: none;
+    outline: none;
+    border-radius: 14px;
+    min-width: 48px;
+    height: 48px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+    font-size: 18px;
+    border: 1px solid rgba(255,255,255,0.12);
+}
 
+.chat-tool-btn:hover {
+    background: rgba(76,201,240,0.18);
+}
+
+.chat-tool-btn.recording {
+    background: rgba(239,68,68,0.35);
+}
+
+.chat-feedback {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.chat-feedback-btn {
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.chat-feedback-btn:hover {
+    background: rgba(76,201,240,0.18);
+}
+
+.chat-feedback-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+
+.chat-feedback-status {
+    color: rgba(255,255,255,0.65);
+    font-size: 12px;
+    align-self: center;
+}
+
+.chat-slots-wrap {
+    display: grid;
+    gap: 8px;
+}
+
+.chat-slots-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.chat-slots-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.chat-slot-btn {
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.10);
+    color: #fff;
+    border-radius: 12px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.chat-slot-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(76, 201, 240, 0.22);
+}
+
+.chat-slot-btn:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
         .chat-send:hover {
             transform: translateY(-2px);
         }
@@ -1025,6 +1111,20 @@ $text = [
                     <button id="chatSend" class="chat-send">
                         <?= htmlspecialchars($text['send']) ?>
                     </button>
+                    <input
+    id="chatAttachment"
+    type="file"
+    accept=".pdf,.png,.jpg,.jpeg,.webp"
+    style="display:none;"
+>
+
+<button id="chatAttach" type="button" class="chat-tool-btn" title="Upload prescription">
+    📎
+</button>
+
+<button id="chatVoice" type="button" class="chat-tool-btn" title="Record voice">
+    🎙️
+</button>
                 </div>
 
                 <div class="chatbot-note">
@@ -1119,6 +1219,7 @@ function openChatbotSection() {
     chatbot.style.display = "block";
 }
 
+<script>
 // =========================
 // Chatbot Logic
 // =========================
@@ -1126,8 +1227,25 @@ function openChatbotSection() {
     const logEl   = document.getElementById("chatLog");
     const inputEl = document.getElementById("chatMessage");
     const sendBtn = document.getElementById("chatSend");
+    const attachBtn = document.getElementById("chatAttach");
+    const attachEl = document.getElementById("chatAttachment");
+    const voiceBtn = document.getElementById("chatVoice");
+
+    let mediaRecorder = null;
+    let voiceChunks = [];
+    let pendingAudioBlob = null;
 
     if (!logEl || !inputEl || !sendBtn) return;
+
+    function getStableChatId() {
+        const key = "hospital_chat_id";
+        let id = localStorage.getItem(key);
+        if (!id) {
+            id = "chat-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+            localStorage.setItem(key, id);
+        }
+        return id;
+    }
 
     function addLine(who, text) {
         const row = document.createElement("div");
@@ -1135,28 +1253,260 @@ function openChatbotSection() {
         row.textContent = text;
         logEl.appendChild(row);
         logEl.scrollTop = logEl.scrollHeight;
+        return row;
+    }
+
+    async function sendChatFeedback(rating, userMessage, botReply, intent, statusEl, buttons) {
+        buttons.forEach(btn => btn.disabled = true);
+        statusEl.textContent = <?= json_encode($lang === 'ar' ? 'جاري الحفظ...' : 'Saving...') ?>;
+
+        try {
+            const form = new FormData();
+            form.append("chat_id", getStableChatId());
+            form.append("rating", rating);
+            form.append("user_message", userMessage || "");
+            form.append("bot_reply", botReply || "");
+            form.append("intent", intent || "");
+
+            const res = await fetch("chat_api.php?action=feedback", {
+                method: "POST",
+                body: form,
+                credentials: "same-origin"
+            });
+
+            if (res.ok) {
+                statusEl.textContent = <?= json_encode($lang === 'ar' ? 'تم حفظ التقييم' : 'Feedback saved') ?>;
+            } else {
+                statusEl.textContent = <?= json_encode($lang === 'ar' ? 'لم يتم حفظ التقييم' : 'Feedback failed') ?>;
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        } catch (e) {
+            statusEl.textContent = <?= json_encode($lang === 'ar' ? 'خطأ في التقييم' : 'Feedback error') ?>;
+            buttons.forEach(btn => btn.disabled = false);
+        }
+    }
+
+    function addFeedbackControls(botRow, userMessage, botReply, intent) {
+        if (!botRow || !botReply) return;
+
+        const wrap = document.createElement("div");
+        wrap.className = "chat-feedback";
+
+        const goodBtn = document.createElement("button");
+        goodBtn.type = "button";
+        goodBtn.className = "chat-feedback-btn";
+        goodBtn.textContent = "👍 " + <?= json_encode($lang === 'ar' ? 'مفيد' : 'Helpful') ?>;
+
+        const badBtn = document.createElement("button");
+        badBtn.type = "button";
+        badBtn.className = "chat-feedback-btn";
+        badBtn.textContent = "👎 " + <?= json_encode($lang === 'ar' ? 'غير مفيد' : 'Not helpful') ?>;
+
+        const status = document.createElement("span");
+        status.className = "chat-feedback-status";
+
+        const buttons = [goodBtn, badBtn];
+        goodBtn.addEventListener("click", () => sendChatFeedback("up", userMessage, botReply, intent, status, buttons));
+        badBtn.addEventListener("click", () => sendChatFeedback("down", userMessage, botReply, intent, status, buttons));
+
+        wrap.appendChild(goodBtn);
+        wrap.appendChild(badBtn);
+        wrap.appendChild(status);
+        botRow.appendChild(wrap);
+    }
+
+    function addSlotsArea(titleText) {
+        const wrap = document.createElement("div");
+        wrap.className = "chat-message bot";
+
+        const inner = document.createElement("div");
+        inner.className = "chat-slots-wrap";
+
+        const title = document.createElement("div");
+        title.className = "chat-slots-title";
+        title.textContent = titleText;
+
+        const group = document.createElement("div");
+        group.className = "chat-slots-group";
+
+        inner.appendChild(title);
+        inner.appendChild(group);
+        wrap.appendChild(inner);
+        logEl.appendChild(wrap);
+        logEl.scrollTop = logEl.scrollHeight;
+
+        return group;
+    }
+
+    function extractSlots(responseData) {
+        if (responseData && responseData.data && Array.isArray(responseData.data.slots)) {
+            return responseData.data.slots;
+        }
+        if (responseData && Array.isArray(responseData.slots)) {
+            return responseData.slots;
+        }
+        if (responseData && responseData.data && responseData.data.data && Array.isArray(responseData.data.data.slots)) {
+            return responseData.data.data.slots;
+        }
+        return [];
+    }
+
+    function formatSlotLabel(slot, index) {
+        const start = slot.start || slot.Start || "";
+        const doctorName = slot.doctor_name || slot.doctorName || "";
+        let datePart = "";
+        let timePart = "";
+
+        if (start) {
+            datePart = String(start).slice(0, 10);
+            timePart = String(start).slice(11, 16);
+        }
+
+        let label = (datePart && timePart)
+            ? `${index + 1}) ${datePart} ${timePart}`
+            : `${index + 1}) موعد`;
+
+        if (doctorName) {
+            label += ` - ${doctorName}`;
+        }
+
+        return label;
+    }
+
+    async function bookSelectedSlot(slot, btnRef) {
+        if (!slot) return;
+
+        btnRef.disabled = true;
+
+        try {
+            const res = await fetch("book_appointment.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    doctor_id: slot.doctor_id ?? slot.doctorId ?? slot.DoctorID ?? null,
+                    branch_id: slot.branch_id ?? slot.branchId ?? slot.BranchID ?? null,
+                    start: slot.start ?? slot.Start ?? null
+                })
+            });
+
+            const raw = await res.text();
+            let data = null;
+
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {}
+
+            if (res.ok) {
+                let msg = "تم تنفيذ الحجز.";
+                if (data && typeof data.message === "string" && data.message.trim() !== "") {
+                    msg = data.message;
+                } else if (data && typeof data.reply === "string" && data.reply.trim() !== "") {
+                    msg = data.reply;
+                }
+                addLine("bot", msg);
+            } else {
+                let msg = "فشل الحجز.";
+                if (data && typeof data.message === "string" && data.message.trim() !== "") {
+                    msg = data.message;
+                } else if (data && typeof data.detail === "string" && data.detail.trim() !== "") {
+                    msg = data.detail;
+                } else if (raw) {
+                    msg = raw;
+                }
+                addLine("bot", msg);
+                btnRef.disabled = false;
+            }
+        } catch (e) {
+            addLine(
+                "bot",
+                <?= json_encode(
+                    $lang === 'ar'
+                    ? 'حصل خطأ أثناء الحجز. تأكدي أن book_appointment.php موجود وأن سيرفر البايثون يعمل.'
+                    : 'A booking error occurred. Make sure book_appointment.php exists and the Python server is running.'
+                ) ?>
+            );
+            console.error(e);
+            btnRef.disabled = false;
+        }
+    }
+
+    function renderSlotButtons(slots) {
+        if (!Array.isArray(slots) || slots.length === 0) return;
+
+        const group = addSlotsArea(
+            <?= json_encode($lang === 'ar' ? 'اختاري ميعاد للحجز:' : 'Choose a slot to book:') ?>
+        );
+
+        slots.forEach((slot, index) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "chat-slot-btn";
+            btn.textContent = formatSlotLabel(slot, index);
+
+            btn.addEventListener("click", function () {
+                bookSelectedSlot(slot, btn);
+            });
+
+            group.appendChild(btn);
+        });
     }
 
     async function sendMessage() {
         const text = (inputEl.value || "").trim();
-        if (!text) return;
+        const attachment = attachEl && attachEl.files && attachEl.files.length ? attachEl.files[0] : null;
+        const audioBlob = pendingAudioBlob;
 
-        addLine("me", text);
+        if (!text && !attachment && !audioBlob) return;
+
+        let shownText = text || "";
+        if (attachment) shownText += (shownText ? "\n" : "") + "📎 " + attachment.name;
+        if (audioBlob) shownText += (shownText ? "\n" : "") + "🎙️ Voice message";
+        addLine("me", shownText);
+
         inputEl.value = "";
+        if (attachEl) attachEl.value = "";
+        pendingAudioBlob = null;
         sendBtn.disabled = true;
 
         try {
             const form = new FormData();
             form.append("message", text);
+            form.append("chat_id", getStableChatId());
+            if (attachment) form.append("attachment", attachment);
+            if (audioBlob) form.append("audio", audioBlob, "voice_message.webm");
 
             const res = await fetch("chat_api.php", {
                 method: "POST",
-                body: form
+                body: form,
+                credentials: "same-origin"
             });
 
-            const data = await res.json();
-            const reply = data.reply || JSON.stringify(data);
-            addLine("bot", reply);
+            const raw = await res.text();
+            let data = null;
+
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {
+                addLine("bot", raw || "Invalid response");
+                return;
+            }
+
+            let reply = "";
+            if (data && typeof data.reply === "string") {
+                reply = data.reply;
+            } else if (data && typeof data.message === "string") {
+                reply = data.message;
+            } else {
+                reply = JSON.stringify(data);
+            }
+
+            const botRow = addLine("bot", reply);
+            addFeedbackControls(botRow, text, reply, data && data.intent ? data.intent : "");
+
+            const slots = extractSlots(data);
+            if (slots.length > 0) {
+                renderSlotButtons(slots);
+            }
 
         } catch (e) {
             addLine(
@@ -1174,7 +1524,49 @@ function openChatbotSection() {
         }
     }
 
+    if (attachBtn && attachEl) {
+        attachBtn.addEventListener("click", function () {
+            attachEl.click();
+        });
+
+        attachEl.addEventListener("change", function () {
+            if (attachEl.files && attachEl.files.length) {
+                addLine("bot", <?= json_encode($lang === 'ar' ? 'تم اختيار الملف. اضغطي إرسال لرفعه.' : 'File selected. Press Send to upload it.') ?>);
+            }
+        });
+    }
+
     sendBtn.addEventListener("click", sendMessage);
+
+    if (voiceBtn && navigator.mediaDevices && window.MediaRecorder) {
+        voiceBtn.addEventListener("click", async function () {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                voiceBtn.classList.remove("recording");
+                voiceBtn.textContent = "🎙️";
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                voiceChunks = [];
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) voiceChunks.push(event.data);
+                };
+                mediaRecorder.onstop = () => {
+                    pendingAudioBlob = new Blob(voiceChunks, { type: "audio/webm" });
+                    stream.getTracks().forEach(track => track.stop());
+                    addLine("bot", <?= json_encode($lang === 'ar' ? 'تم تسجيل الصوت. اضغطي إرسال لتحويله لنص والرد عليه.' : 'Voice recorded. Press Send to transcribe and answer it.') ?>);
+                };
+                mediaRecorder.start();
+                voiceBtn.classList.add("recording");
+                voiceBtn.textContent = "⏹️";
+            } catch (err) {
+                addLine("bot", <?= json_encode($lang === 'ar' ? 'المتصفح لم يسمح باستخدام الميكروفون.' : 'Microphone permission was blocked.') ?>);
+            }
+        });
+    }
 
     inputEl.addEventListener("keydown", function (e) {
         if (e.key === "Enter") {
@@ -1184,6 +1576,7 @@ function openChatbotSection() {
 
     addLine("bot", <?= json_encode($text['chat_welcome']) ?>);
 })();
+</script>
 </script>
 
 </body>

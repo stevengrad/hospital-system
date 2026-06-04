@@ -1390,7 +1390,7 @@ body{
                     <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
                     <div class="input-wrap">
                         <i class="fa-solid fa-id-card icon"></i>
-                       <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" value="<?= old_value('national_id', $old) ?>" required>
+                      <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" readonly required>
                     </div>
                     <?= field_error('national_id', $fieldErrors) ?>
                     <div class="field-error client-error" id="national_id_error"></div>
@@ -1431,7 +1431,11 @@ body{
             <div class="form-group <?= !empty($fieldErrors['nid_photo']) ? 'has-error' : '' ?>">
                 <label class="field-label"><?= htmlspecialchars($t['nid_photo']) ?></label>
                 <div class="file-group">
-                    <input type="file" name="nid_photo" id="nid_photo" accept="image/*" <?= empty($old['national_id_photo'] ?? '') ? 'required' : '' ?>>
+                   <input type="file" name="nid_photo" id="nid_photo" accept="image/*" required>
+
+<div id="ocrStatus" style="font-size:13px;margin-top:8px;color:#64748b;">
+    Choose National ID image to extract the number.
+</div>
                     <input type="hidden" name="old_national_id_photo" id="old_national_id_photo" value="<?= htmlspecialchars($old['national_id_photo'] ?? '') ?>">
                     <?php if (!empty($old['national_id_photo'] ?? '')): ?>
                         <small style="color: green; font-weight: 600; display: block; margin-top: 8px;"><?= ($lang === 'ar') ? 'تم رفع صورة البطاقة بالفعل.' : 'National ID photo already uploaded.' ?></small>
@@ -1603,9 +1607,6 @@ function togglePassword(inputId, el){
     }
 });
 
-/* =========================
-   FACE CAMERA - Guided Angles
-========================= */
 const openFaceCameraBtn = document.getElementById('openFaceCameraBtn');
 const startFaceScanBtn = document.getElementById('startFaceScanBtn');
 const faceBox = document.getElementById('faceBox');
@@ -1833,6 +1834,83 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
             firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const nidPhotoInput = document.getElementById("nid_photo");
+    const nationalIdInput = document.getElementById("national_id");
+    const ocrStatus = document.getElementById("ocrStatus");
+
+    if (!nidPhotoInput || !nationalIdInput || !ocrStatus) {
+        return;
+    }
+
+    // Lock National ID from the start
+    nationalIdInput.value = nationalIdInput.value || "";
+    nationalIdInput.readOnly = true;
+    nationalIdInput.setAttribute("readonly", "readonly");
+    nationalIdInput.removeAttribute("disabled");
+
+    nidPhotoInput.addEventListener("change", async function () {
+        const file = this.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("person_type", "egyptian");
+
+        ocrStatus.textContent = "Reading National ID from image...";
+        ocrStatus.style.color = "#64748b";
+
+        try {
+            const response = await fetch("http://localhost:5050/ocr/extract-id", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.id_number) {
+                nationalIdInput.value = data.id_number;
+
+                // Keep National ID locked
+                nationalIdInput.readOnly = true;
+                nationalIdInput.setAttribute("readonly", "readonly");
+                nationalIdInput.removeAttribute("disabled");
+
+                ocrStatus.textContent = "National ID extracted successfully";
+                ocrStatus.style.color = "#16a34a";
+
+                if (typeof clearError === "function") {
+                    clearError("national_id");
+                }
+            } else {
+                nationalIdInput.value = "";
+
+                // Keep National ID locked
+                nationalIdInput.readOnly = true;
+                nationalIdInput.setAttribute("readonly", "readonly");
+                nationalIdInput.removeAttribute("disabled");
+
+                ocrStatus.textContent = "Could not read National ID. Please upload a clearer image.";
+                ocrStatus.style.color = "#dc2626";
+            }
+        } catch (error) {
+            nationalIdInput.value = "";
+
+            // Keep National ID locked
+            nationalIdInput.readOnly = true;
+            nationalIdInput.setAttribute("readonly", "readonly");
+            nationalIdInput.removeAttribute("disabled");
+
+            ocrStatus.textContent = "OCR service error. Please upload the image again.";
+            ocrStatus.style.color = "#dc2626";
+        }
+    });
 });
 </script>
 </body>

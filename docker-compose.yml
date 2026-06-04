@@ -83,3 +83,11 @@ services:
       FACE_THRESHOLD: 0.40
     ports:
       - "5001:5001"
+  ocr-api:
+    build:
+      context: D:/hospital/hospital/ocr
+      dockerfile: Dockerfile
+    container_name: hospital-ocr-api
+    ports:
+      - "5050:5050"
+    restart: unless-stopped

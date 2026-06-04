@@ -12,6 +12,7 @@ $HOSTED_ZONE_ID="Z08358461X4HB2AFHPGHJ"
 $WEB_TG="arn:aws:elasticloadbalancing:eu-central-1:137068224200:targetgroup/hospital-web-tg/06f08fca6148d504"
 $CHATBOT_TG="arn:aws:elasticloadbalancing:eu-central-1:137068224200:targetgroup/hospital-chatbot-tg/b7e7a7ed998017df"
 $FACE_TG="arn:aws:elasticloadbalancing:eu-central-1:137068224200:targetgroup/hospital-face-tg/59a620872442803c"
+$OcrTargetGroupArn = "arn:aws:elasticloadbalancing:eu-central-1:137068224200:targetgroup/hospital-ocr-api-tg/fc68db18dee85093"
 
 Write-Host "Starting RDS..."
 aws rds start-db-instance --db-instance-identifier database-1 --region $REGION
@@ -68,6 +69,12 @@ aws elbv2 create-rule `
   --actions Type=forward,TargetGroupArn=$FACE_TG `
   --region $REGION
 
+aws elbv2 create-rule `
+  --listener-arn $HTTPS_LISTENER_ARN `
+  --priority 30 `
+  --conditions Field=path-pattern,Values="/ocr/*" `
+  --actions Type=forward,TargetGroupArn=$OcrTargetGroupArn `
+  --region $REGION
 Write-Host "Updating Route 53..."
 
 $changeBatch = @{
@@ -123,6 +130,6 @@ Write-Host "Starting ECS services..."
 aws ecs update-service --cluster $CLUSTER --service hospital-web-service --desired-count 1 --region $REGION
 aws ecs update-service --cluster $CLUSTER --service hospital-chatbot-service --desired-count 1 --region $REGION
 aws ecs update-service --cluster $CLUSTER --service hospital-FceDetection-task-service-akupo8cp --desired-count 1 --region $REGION
-
+aws ecs update-service --cluster $CLUSTER --service hospital-ocr-api-service-ts2g6l6c  --desired-count 1  --force-new-deployment --region $REGION
 Write-Host "Start script finished."
 Write-Host "ALB DNS: $ALB_DNS"
