@@ -76,42 +76,55 @@ aws elbv2 create-rule `
   --actions Type=forward,TargetGroupArn=$OcrTargetGroupArn `
   --region $REGION
 Write-Host "Updating Route 53..."
-$changeBatch = @"
-{
-  "Changes": [
-    {
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "cairohospitals.click",
-        "Type": "A",
-        "AliasTarget": {
-          "HostedZoneId": "$ALB_ZONE",
-          "DNSName": "dualstack.$ALB_DNS",
-          "EvaluateTargetHealth": true
+
+$changeBatch = @{
+    Changes = @(
+        @{
+            Action = "UPSERT"
+            ResourceRecordSet = @{
+                Name = "cairohospitals.click."
+                Type = "A"
+                AliasTarget = @{
+                    HostedZoneId = $ALB_ZONE
+                    DNSName = "dualstack.$ALB_DNS"
+                    EvaluateTargetHealth = $false
+                }
+            }
+        },
+        @{
+            Action = "UPSERT"
+            ResourceRecordSet = @{
+                Name = "www.cairohospitals.click."
+                Type = "A"
+                AliasTarget = @{
+                    HostedZoneId = $ALB_ZONE
+                    DNSName = "dualstack.$ALB_DNS"
+                    EvaluateTargetHealth = $false
+                }
+            }
+        },
+        @{
+            Action = "UPSERT"
+            ResourceRecordSet = @{
+                Name = "*.cairohospitals.click."
+                Type = "A"
+                AliasTarget = @{
+                    HostedZoneId = $ALB_ZONE
+                    DNSName = "dualstack.$ALB_DNS"
+                    EvaluateTargetHealth = $false
+                }
+            }
         }
-      }
-    },
-    {
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "*.cairohospitals.click",
-        "Type": "A",
-        "AliasTarget": {
-          "HostedZoneId": "$ALB_ZONE",
-          "DNSName": "dualstack.$ALB_DNS",
-          "EvaluateTargetHealth": true
-        }
-      }
-    }
-  ]
-}
-"@
+    )
+} | ConvertTo-Json -Depth 10
 
 $changeBatch | Out-File -Encoding ascii route53-change.json
 
 aws route53 change-resource-record-sets `
   --hosted-zone-id $HOSTED_ZONE_ID `
   --change-batch file://route53-change.json
+
+Write-Host "Route 53 updated ✅"
 
 Write-Host "Starting ECS services..."
 aws ecs update-service --cluster $CLUSTER --service hospital-web-service --desired-count 1 --region $REGION
