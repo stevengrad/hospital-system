@@ -1,0 +1,21 @@
+Cardiology department is open from 9 AM to 5 PM.
+
+Emergency department is available 24/7.
+
+Neurology clinic is available from Sunday to Thursday.
+
+Patients can book appointments through the website appointment page.
+
+The hospital is located in Cairo, Egypt.
+
+قسم القلب متاح من الساعة 9 صباحا إلى 5 مساء.
+
+الطوارئ متاحة 24 ساعة طوال أيام الأسبوع.
+
+يمكن للمريض حجز موعد من خلال صفحة الحجز في الموقع.
+
+المستشفى موجودة في القاهرة، مصر.
+
+لو المريض عايز يحجز كشف، يستخدم صفحة appointments في الموقع.
+
+مواعيد قسم المخ والأعصاب من الأحد إلى الخميس.

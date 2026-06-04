@@ -103,7 +103,8 @@ $text = [
     <title><?= htmlspecialchars($text['dashboard_title'] . ' - ' . $text['hospital_name']) ?></title>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
- <link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
+    <link rel="icon" type="image/png" href="assets/Cairo_hospitals1.png">
+
     <style>
         * {
             box-sizing: border-box;
@@ -239,6 +240,7 @@ $text = [
             background: linear-gradient(135deg, var(--primary), var(--primary-2));
             box-shadow: 0 10px 20px rgba(76,201,240,0.25);
         }
+
 
         .edit-profile-btn {
             display: inline-flex;
@@ -680,6 +682,42 @@ $text = [
             border: 1px solid rgba(45,212,191,0.20);
         }
 
+
+        .chat-feedback {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .chat-feedback-btn {
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(255,255,255,0.10);
+            color: #eaffff;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: .2s ease;
+        }
+
+        .chat-feedback-btn:hover {
+            background: rgba(76,201,240,0.18);
+            transform: translateY(-1px);
+        }
+
+        .chat-feedback-btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chat-feedback-status {
+            color: rgba(255,255,255,0.68);
+            font-size: 12px;
+        }
+
         .chat-input-row {
             display: flex;
             gap: 10px;
@@ -701,7 +739,9 @@ $text = [
             color: rgba(255,255,255,0.60);
         }
 
-        .chat-send {
+        .chat-send,
+        .chat-voice-btn,
+        .chat-file-label {
             border: none;
             border-radius: 16px;
             padding: 14px 18px;
@@ -710,95 +750,23 @@ $text = [
             color: #07141f;
             background: linear-gradient(135deg, #8effd8, #2dd4bf);
             transition: .25s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
-.chat-tool-btn {
-    border: none;
-    outline: none;
-    border-radius: 14px;
-    min-width: 48px;
-    height: 48px;
-    cursor: pointer;
-    background: rgba(255,255,255,0.10);
-    color: #fff;
-    font-size: 18px;
-    border: 1px solid rgba(255,255,255,0.12);
-}
 
-.chat-tool-btn:hover {
-    background: rgba(76,201,240,0.18);
-}
+        .chat-voice-btn.recording {
+            background: linear-gradient(135deg, #ffd166, #ff6b6b);
+        }
 
-.chat-tool-btn.recording {
-    background: rgba(239,68,68,0.35);
-}
+        .chat-file-input {
+            display: none;
+        }
 
-.chat-feedback {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-    flex-wrap: wrap;
-}
-
-.chat-feedback-btn {
-    border: 1px solid rgba(255,255,255,0.14);
-    background: rgba(255,255,255,0.08);
-    color: #fff;
-    border-radius: 999px;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.chat-feedback-btn:hover {
-    background: rgba(76,201,240,0.18);
-}
-
-.chat-feedback-btn:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-}
-
-.chat-feedback-status {
-    color: rgba(255,255,255,0.65);
-    font-size: 12px;
-    align-self: center;
-}
-
-.chat-slots-wrap {
-    display: grid;
-    gap: 8px;
-}
-
-.chat-slots-title {
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.chat-slots-group {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.chat-slot-btn {
-    border: 1px solid rgba(255,255,255,0.14);
-    background: rgba(255,255,255,0.10);
-    color: #fff;
-    border-radius: 12px;
-    padding: 8px 12px;
-    cursor: pointer;
-}
-
-.chat-slot-btn:hover {
-    transform: translateY(-1px);
-    background: rgba(76, 201, 240, 0.22);
-}
-
-.chat-slot-btn:disabled {
-    opacity: .6;
-    cursor: not-allowed;
-}
-        .chat-send:hover {
+        .chat-send:hover,
+        .chat-voice-btn:hover,
+        .chat-file-label:hover {
             transform: translateY(-2px);
         }
 
@@ -808,33 +776,83 @@ $text = [
             line-height: 1.7;
         }
 
+        .chat-slots-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .chat-slots-title {
+            color: var(--text-soft);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .chat-slots-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chat-slot-btn {
+            border: 1px solid rgba(76, 201, 240, 0.35);
+            background: rgba(76, 201, 240, 0.14);
+            color: #dff8ff;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .22s ease;
+        }
+
+        .chat-slot-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(76, 201, 240, 0.22);
+        }
+
+        .chat-slot-btn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .chat-debug {
+            color: rgba(255,255,255,0.55);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+
         .footer-note {
             text-align: center;
             color: rgba(255,255,255,0.60);
             font-size: 13px;
             margin-top: 18px;
         }
-        .logo-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 18px;
-    background: #ffffff;
-    border: 1px solid rgba(255,255,255,0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.16);
-}
 
-.logo-icon img {
-    width: 58px;
-    height: 58px;
-    object-fit: contain;
-    display: block;
-    border-radius: 14px;
-}
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 18px;
+            background: #ffffff;
+            border: 1px solid rgba(255,255,255,0.45);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+        }
+
+        .logo-icon img {
+            width: 58px;
+            height: 58px;
+            object-fit: contain;
+            display: block;
+            border-radius: 14px;
+        }
+
         @media (max-width: 1100px) {
             .hero {
                 grid-template-columns: 1fr;
@@ -880,8 +898,28 @@ $text = [
 
             .search-btn,
             .chat-send,
-            .edit-profile-btn,
-            .logout-btn {
+    
+        .edit-profile-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            outline: none;
+            padding: 12px 16px;
+            border-radius: 14px;
+            color: #fff;
+            font-weight: 700;
+            background: linear-gradient(135deg, #4cc9f0, #4895ef);
+            box-shadow: 0 10px 24px rgba(76,201,240,0.28);
+            transition: transform .25s ease, box-shadow .25s ease;
+        }
+
+        .edit-profile-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 30px rgba(76,201,240,0.34);
+        }
+
+        .logout-btn {
                 width: 100%;
                 justify-content: center;
             }
@@ -904,14 +942,11 @@ $text = [
     <header class="topbar glass">
         <div class="brand">
             <div class="logo-icon">
-               <img src="assets/Cairo_hospitals1.png" alt="Cairo Hospitals">
+                <img src="assets/Cairo_hospitals1.png" alt="Cairo Hospitals">
             </div>
             <div class="brand-text">
                 <h1><?= htmlspecialchars($text['hospital_name']) ?></h1>
-                <p>
-    <?= ($lang === 'ar') ? 'صحتك متصلة وآمنة دائمًا' : 'Your health, connected and protected' ?>
-</p>
-                
+                <p><?= ($lang === 'ar') ? 'صحتك متصلة وآمنة دائمًا' : 'Your health, connected and protected' ?></p>
             </div>
         </div>
 
@@ -1108,23 +1143,18 @@ $text = [
                         placeholder="<?= htmlspecialchars($text['chat_placeholder']) ?>"
                     >
 
+                    <label class="chat-file-label" for="chatAttachment" title="Upload prescription PDF or image">
+                        📎
+                    </label>
+                    <input id="chatAttachment" class="chat-file-input" type="file" accept="application/pdf,image/*">
+
+                    <button id="chatVoice" type="button" class="chat-voice-btn" title="Record voice message">
+                        🎙️
+                    </button>
+
                     <button id="chatSend" class="chat-send">
                         <?= htmlspecialchars($text['send']) ?>
                     </button>
-                    <input
-    id="chatAttachment"
-    type="file"
-    accept=".pdf,.png,.jpg,.jpeg,.webp"
-    style="display:none;"
->
-
-<button id="chatAttach" type="button" class="chat-tool-btn" title="Upload prescription">
-    📎
-</button>
-
-<button id="chatVoice" type="button" class="chat-tool-btn" title="Record voice">
-    🎙️
-</button>
                 </div>
 
                 <div class="chatbot-note">
@@ -1217,9 +1247,9 @@ function openChatbotSection() {
     const chatbot = document.getElementById("chatbot-section");
     if (!chatbot) return;
     chatbot.style.display = "block";
+    chatbot.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-<script>
 // =========================
 // Chatbot Logic
 // =========================
@@ -1227,27 +1257,29 @@ function openChatbotSection() {
     const logEl   = document.getElementById("chatLog");
     const inputEl = document.getElementById("chatMessage");
     const sendBtn = document.getElementById("chatSend");
-    const attachBtn = document.getElementById("chatAttach");
     const attachEl = document.getElementById("chatAttachment");
     const voiceBtn = document.getElementById("chatVoice");
-
     let mediaRecorder = null;
     let voiceChunks = [];
     let pendingAudioBlob = null;
 
-    if (!logEl || !inputEl || !sendBtn) return;
-
+    const CHAT_ID_KEY = "hospital_chat_id_v2";
     function getStableChatId() {
-        const key = "hospital_chat_id";
-        let id = localStorage.getItem(key);
+        let id = localStorage.getItem(CHAT_ID_KEY);
         if (!id) {
-            id = "chat-" + Date.now() + "-" + Math.random().toString(16).slice(2);
-            localStorage.setItem(key, id);
+            id = "web_" + Date.now() + "_" + Math.random().toString(36).slice(2);
+            localStorage.setItem(CHAT_ID_KEY, id);
         }
         return id;
     }
 
+    if (!logEl || !inputEl || !sendBtn) return;
+
     function addLine(who, text) {
+        if (text === null || text === undefined || text === "") {
+            text = " ";
+        }
+
         const row = document.createElement("div");
         row.className = "chat-message " + (who === "me" ? "me" : "bot");
         row.textContent = text;
@@ -1256,33 +1288,46 @@ function openChatbotSection() {
         return row;
     }
 
+
     async function sendChatFeedback(rating, userMessage, botReply, intent, statusEl, buttons) {
-        buttons.forEach(btn => btn.disabled = true);
-        statusEl.textContent = <?= json_encode($lang === 'ar' ? 'جاري الحفظ...' : 'Saving...') ?>;
+        if (buttons) buttons.forEach(btn => btn.disabled = true);
+        if (statusEl) {
+            statusEl.textContent = <?= json_encode($lang === 'ar' ? 'جاري حفظ التقييم...' : 'Saving feedback...') ?>;
+        }
+
+        let comment = "";
+        if (rating === "down") {
+            comment = prompt(<?= json_encode($lang === 'ar' ? 'ممكن تكتبي سبب بسيط عشان نحسن الرد؟' : 'Optional: tell us what was wrong so we can improve.') ?>) || "";
+        }
 
         try {
             const form = new FormData();
+            form.append("feedback_action", "1");
             form.append("chat_id", getStableChatId());
-            form.append("rating", rating);
             form.append("user_message", userMessage || "");
             form.append("bot_reply", botReply || "");
+            form.append("rating", rating);
+            form.append("comment", comment);
             form.append("intent", intent || "");
 
-            const res = await fetch("chat_api.php?action=feedback", {
+            const res = await fetch("chat_api.php", {
                 method: "POST",
                 body: form,
                 credentials: "same-origin"
             });
+            const raw = await res.text();
+            let data = null;
+            try { data = JSON.parse(raw); } catch (e) {}
 
-            if (res.ok) {
-                statusEl.textContent = <?= json_encode($lang === 'ar' ? 'تم حفظ التقييم' : 'Feedback saved') ?>;
+            if (res.ok && data && (data.ok === true || data.saved === true)) {
+                if (statusEl) statusEl.textContent = <?= json_encode($lang === 'ar' ? 'تم حفظ التقييم، شكرًا لك ✅' : 'Feedback saved, thank you ✅') ?>;
             } else {
-                statusEl.textContent = <?= json_encode($lang === 'ar' ? 'لم يتم حفظ التقييم' : 'Feedback failed') ?>;
-                buttons.forEach(btn => btn.disabled = false);
+                if (statusEl) statusEl.textContent = <?= json_encode($lang === 'ar' ? 'لم يتم حفظ التقييم.' : 'Feedback was not saved.') ?>;
+                if (buttons) buttons.forEach(btn => btn.disabled = false);
             }
         } catch (e) {
-            statusEl.textContent = <?= json_encode($lang === 'ar' ? 'خطأ في التقييم' : 'Feedback error') ?>;
-            buttons.forEach(btn => btn.disabled = false);
+            if (statusEl) statusEl.textContent = <?= json_encode($lang === 'ar' ? 'حصل خطأ أثناء حفظ التقييم.' : 'Feedback save error.') ?>;
+            if (buttons) buttons.forEach(btn => btn.disabled = false);
         }
     }
 
@@ -1492,12 +1537,15 @@ function openChatbotSection() {
             }
 
             let reply = "";
-            if (data && typeof data.reply === "string") {
+
+            if (data && typeof data.reply === "string" && data.reply.trim() !== "") {
                 reply = data.reply;
-            } else if (data && typeof data.message === "string") {
+            } else if (data && typeof data.message === "string" && data.message.trim() !== "") {
                 reply = data.message;
+            } else if (data && typeof data.error === "string" && data.error.trim() !== "") {
+                reply = data.error;
             } else {
-                reply = JSON.stringify(data);
+                reply = <?= json_encode($lang === 'ar' ? 'تم استلام الرد بدون نص واضح.' : 'Response received without readable text.') ?>;
             }
 
             const botRow = addLine("bot", reply);
@@ -1524,19 +1572,16 @@ function openChatbotSection() {
         }
     }
 
-    if (attachBtn && attachEl) {
-        attachBtn.addEventListener("click", function () {
-            attachEl.click();
-        });
+    sendBtn.addEventListener("click", sendMessage);
 
+
+    if (attachEl) {
         attachEl.addEventListener("change", function () {
             if (attachEl.files && attachEl.files.length) {
                 addLine("bot", <?= json_encode($lang === 'ar' ? 'تم اختيار الملف. اضغطي إرسال لرفعه.' : 'File selected. Press Send to upload it.') ?>);
             }
         });
     }
-
-    sendBtn.addEventListener("click", sendMessage);
 
     if (voiceBtn && navigator.mediaDevices && window.MediaRecorder) {
         voiceBtn.addEventListener("click", async function () {
@@ -1576,7 +1621,6 @@ function openChatbotSection() {
 
     addLine("bot", <?= json_encode($text['chat_welcome']) ?>);
 })();
-</script>
 </script>
 
 </body>
