@@ -4,3 +4,5 @@ easyocr
 opencv-python-headless
 numpy
 gunicorn
+Pillow
+pillow-heif

@@ -4,13 +4,22 @@ import cv2
 import numpy as np
 import easyocr
 import re
+import io
+from PIL import Image, ImageOps
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except Exception:
+    pass
 app = Flask(__name__)
 CORS(app)
 
 reader_ar = easyocr.Reader(["ar", "en"], gpu=False)
 reader_en = easyocr.Reader(["en"], gpu=False)
-
+ALLOWED_IMAGE_EXTENSIONS = {
+    "jpg", "jpeg", "png", "webp", "bmp", "tif", "tiff", "gif", "heic", "heif"
+}
 
 def convert_arabic_digits_to_english(text):
     arabic_digits = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹"
@@ -18,7 +27,73 @@ def convert_arabic_digits_to_english(text):
     table = str.maketrans(arabic_digits, english_digits)
     return text.translate(table)
 
+def get_file_extension(filename):
+    if not filename or "." not in filename:
+        return ""
+    return filename.rsplit(".", 1)[1].lower().strip()
 
+
+def uploaded_image_to_jpg_cv2(file_storage):
+    """
+    Accept different image formats, convert them to JPG in memory,
+    then return an OpenCV BGR image for the existing OCR pipeline.
+    """
+    original_filename = file_storage.filename or "uploaded_image"
+    ext = get_file_extension(original_filename)
+
+    if ext and ext not in ALLOWED_IMAGE_EXTENSIONS:
+        return None, None, f"Unsupported image type: .{ext}"
+
+    file_bytes = file_storage.read()
+    if not file_bytes:
+        return None, None, "Empty image file"
+
+    try:
+        pil_img = Image.open(io.BytesIO(file_bytes))
+        pil_img = ImageOps.exif_transpose(pil_img)
+
+        try:
+            pil_img.seek(0)
+        except Exception:
+            pass
+
+        if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
+            rgba = pil_img.convert("RGBA")
+            background = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+            background.alpha_composite(rgba)
+            pil_img = background.convert("RGB")
+        else:
+            pil_img = pil_img.convert("RGB")
+
+        jpg_buffer = io.BytesIO()
+        pil_img.save(jpg_buffer, format="JPEG", quality=95)
+        jpg_bytes = jpg_buffer.getvalue()
+
+        jpg_array = np.frombuffer(jpg_bytes, np.uint8)
+        img = cv2.imdecode(jpg_array, cv2.IMREAD_COLOR)
+
+        if img is None:
+            return None, None, "Image was converted to JPG but OpenCV could not read it"
+
+        return img, jpg_bytes, None
+
+    except Exception as pil_error:
+        try:
+            file_array = np.frombuffer(file_bytes, np.uint8)
+            img = cv2.imdecode(file_array, cv2.IMREAD_COLOR)
+
+            if img is None:
+                return None, None, f"Invalid or unsupported image. Details: {pil_error}"
+
+            success, jpg_array = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+
+            if not success:
+                return None, None, "Image was decoded but could not be converted to JPG"
+
+            return img, jpg_array.tobytes(), None
+
+        except Exception as cv_error:
+            return None, None, f"Invalid image. Details: {cv_error}"
 def extract_egyptian_id(img):
     h, w, _ = img.shape
 
@@ -106,7 +181,9 @@ def extract_passport_id(img):
 def health():
     return jsonify({
         "status": "ok",
-        "service": "ocr"
+        "service": "ocr",
+        "accepted_image_types": sorted(ALLOWED_IMAGE_EXTENSIONS),
+        "conversion": "uploaded image is converted to JPG before OCR"
     })
 
 
@@ -121,15 +198,16 @@ def extract_id():
         }), 400
 
     file = request.files["image"]
+    original_filename = file.filename or "uploaded_image"
 
-    file_bytes = np.frombuffer(file.read(), np.uint8)
-    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    img, jpg_bytes, conversion_error = uploaded_image_to_jpg_cv2(file)
 
     if img is None:
-        return jsonify({
-            "success": False,
-            "message": "Invalid image"
-        }), 400
+     return jsonify({
+        "success": False,
+        "message": conversion_error or "Invalid image",
+        "original_filename": original_filename
+    }), 400
 
     if person_type == "egyptian":
         national_id, raw_text = extract_egyptian_id(img)

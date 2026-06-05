@@ -3,7 +3,7 @@
                     {
                         "ResourceRecordSet":  {
                                                   "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-991106442.eu-central-1.elb.amazonaws.com",
+                                                                      "DNSName":  "dualstack.hospital-alb-407641320.eu-central-1.elb.amazonaws.com",
                                                                       "EvaluateTargetHealth":  false,
                                                                       "HostedZoneId":  "Z215JYRZR1TBD5"
                                                                   },
@@ -15,7 +15,7 @@
                     {
                         "ResourceRecordSet":  {
                                                   "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-991106442.eu-central-1.elb.amazonaws.com",
+                                                                      "DNSName":  "dualstack.hospital-alb-407641320.eu-central-1.elb.amazonaws.com",
                                                                       "EvaluateTargetHealth":  false,
                                                                       "HostedZoneId":  "Z215JYRZR1TBD5"
                                                                   },
@@ -27,7 +27,7 @@
                     {
                         "ResourceRecordSet":  {
                                                   "AliasTarget":  {
-                                                                      "DNSName":  "dualstack.hospital-alb-991106442.eu-central-1.elb.amazonaws.com",
+                                                                      "DNSName":  "dualstack.hospital-alb-407641320.eu-central-1.elb.amazonaws.com",
                                                                       "EvaluateTargetHealth":  false,
                                                                       "HostedZoneId":  "Z215JYRZR1TBD5"
                                                                   },
