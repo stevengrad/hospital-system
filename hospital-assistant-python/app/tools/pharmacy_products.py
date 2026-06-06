@@ -79,7 +79,10 @@ COMPARE_WORDS = [
 ]
 
 RECOMMEND_WORDS = [
-    "recommend", "suggest", "suitable", "best", "for", "need", "want", "عايز", "عايزه", "عاوز", "عاوزه", "محتاج", "محتاجه", "رشح", "تنصح", "ينفع", "مناسب", "مناسبه", "غسول", "بشره", "دهنيه", "جافه", "حساسه",
+    "recommend", "suggest", "suitable", "best", "for", "need", "want", "medicine", "medication", "treatment", "product",
+    "عايز", "عايزه", "عايزة", "عاوز", "عاوزه", "عاوزة", "محتاج", "محتاجه", "محتاجة",
+    "حاجة", "حاجه", "دواء", "علاج", "منتج", "رشح", "تنصح", "ينفع", "مناسب", "مناسبه", "مناسبة",
+    "غسول", "بشره", "بشرة", "دهنيه", "دهنية", "جافه", "جافة", "حساسه", "حساسة",
 ]
 
 ORDER_WORDS = [
@@ -288,7 +291,16 @@ def is_product_recommendation_question(text: str) -> bool:
     # Avoid catching medication safety questions.
     if any(k in x for k in ["مخاطر", "risk", "warning", "interaction", "تعارض", "تداخل"]):
         return False
-    product_domain = any(k in x for k in ["غسول", "cleanser", "wash", "بشره", "skin", "دهنيه", "oily", "حبوب", "acne", "مرطب", "كريم", "serum", "سيروم", "واقي", "sunscreen"])
+    product_domain = any(k in x for k in [
+        # skincare/products
+        "غسول", "cleanser", "wash", "بشره", "بشرة", "skin", "دهنيه", "دهنية", "oily",
+        "حبوب", "acne", "مرطب", "كريم", "cream", "serum", "سيروم", "واقي", "sunscreen",
+        # common pharmacy needs/symptoms that can be answered from pharmacy file
+        "مغص", "spasm", "cramp", "stomach", "abdominal", "صداع", "headache",
+        "حراره", "حرارة", "fever", "كحه", "كحة", "cough", "برد", "cold", "flu",
+        "حساسيه", "حساسية", "allergy", "حرقان", "heartburn", "اسهال", "diarrhea", "امساك", "constipation",
+        "الم", "ألم", "pain"
+    ])
     recommendation_domain = any(k in x for k in RECOMMEND_WORDS)
     return product_domain and recommendation_domain
 
@@ -306,16 +318,150 @@ def find_products_by_name(text: str, limit: int = 3) -> list[dict[str, Any]]:
     return _search_products(text, top_k=limit, candidate_k=30, min_score=0.22)
 
 
+
+def _simplify_product_text(text: str) -> str:
+    """Normalize a brand/query to comparable lightweight tokens."""
+    x = _basic_product_normalize(text or "").lower()
+    # keep letters/numbers/Arabic only
+    return " ".join(_TOKEN_RE.findall(x))
+
+
+def _meaningful_brand_tokens(brand: str) -> set[str]:
+    toks = set(_TOKEN_RE.findall(_simplify_product_text(brand)))
+    generic = {
+        "advance", "extra", "plus", "protect", "forte", "gel", "cream", "tablet", "tablets",
+        "capsule", "capsules", "syrup", "mg", "ml", "100", "500", "1000"
+    }
+    return {t for t in toks if len(t) >= 3 and t not in generic}
+
+
+def _mentioned_products_in_query(text: str) -> list[dict[str, Any]]:
+    """Return products explicitly mentioned by brand, e.g. Panadol and Brufen.
+
+    This prevents comparison questions from comparing the top recommendation
+    results instead of the two products the user actually named.
+    """
+    load_pharmacy_products()
+    if not _products:
+        return []
+
+    q = _simplify_product_text(text)
+    q_tokens = set(_TOKEN_RE.findall(q))
+    selected: list[dict[str, Any]] = []
+    seen = set()
+
+    # 1) Strong token containment: "Panadol" matches "Panadol Advance".
+    for item in _products:
+        brand_key = item.brand_name.lower()
+        if brand_key in seen:
+            continue
+        brand_tokens = _meaningful_brand_tokens(item.brand_name)
+        if brand_tokens and brand_tokens.intersection(q_tokens):
+            row = item.to_dict()
+            row.update({"score": 1.0, "explicit_brand_match": True})
+            selected.append(row)
+            seen.add(brand_key)
+
+    # 2) Fuzzy fallback for typos in brand names.
+    if len(selected) < 2:
+        for item in _products:
+            brand_key = item.brand_name.lower()
+            if brand_key in seen:
+                continue
+            brand_tokens = _meaningful_brand_tokens(item.brand_name)
+            if not brand_tokens:
+                continue
+            best = 0.0
+            for bt in brand_tokens:
+                for qt in q_tokens:
+                    if len(qt) >= 3:
+                        best = max(best, SequenceMatcher(None, bt, qt).ratio())
+            if best >= 0.88:
+                row = item.to_dict()
+                row.update({"score": round(best, 4), "explicit_brand_match": True})
+                selected.append(row)
+                seen.add(brand_key)
+            if len(selected) >= 3:
+                break
+
+    # Keep order based on first occurrence in user text when possible.
+    def pos(row: dict[str, Any]) -> int:
+        positions = []
+        for token in _meaningful_brand_tokens(row.get("brand_name", "")):
+            idx = q.find(token)
+            if idx >= 0:
+                positions.append(idx)
+        return min(positions) if positions else 10**9
+
+    selected.sort(key=pos)
+    return selected[:3]
+
+
+def _need_hint(text: str) -> str:
+    x = _basic_product_normalize(text)
+    if any(k in x for k in ["صداع", "headache", "migraine", "soda3"]):
+        return "headache"
+    if any(k in x for k in ["حراره", "fever", "temperature"]):
+        return "fever"
+    if any(k in x for k in ["التهاب", "inflammation", "swelling"]):
+        return "inflammation"
+    if any(k in x for k in ["وجع", "pain", "ache"]):
+        return "pain"
+    return ""
+
+
+def _best_for_need(items: list[dict[str, Any]], text: str) -> dict[str, Any] | None:
+    need = _need_hint(text)
+    if not need or not items:
+        return None
+
+    def suitability(item: dict[str, Any]) -> float:
+        blob = _basic_product_normalize(
+            f"{item.get('brand_name','')} {item.get('disease_skin_type','')} {item.get('active_ingredient','')} {item.get('main_indication','')}"
+        ).lower()
+        score = 0.0
+        if need == "headache":
+            for k in ["headache", "migraine", "صداع", "pain relief", "analgesic", "paracetamol", "acetaminophen"]:
+                if k in blob:
+                    score += 2.0
+            for k in ["toothache", "dental", "joint", "swelling", "inflammation"]:
+                if k in blob:
+                    score -= 0.7
+        elif need == "fever":
+            for k in ["fever", "antipyretic", "حراره", "paracetamol", "acetaminophen"]:
+                if k in blob:
+                    score += 2.0
+        elif need == "inflammation":
+            for k in ["inflammation", "swelling", "nsaid", "ibuprofen"]:
+                if k in blob:
+                    score += 2.0
+        elif need == "pain":
+            for k in ["pain", "analgesic", "paracetamol", "ibuprofen", "acetaminophen"]:
+                if k in blob:
+                    score += 1.5
+        if int(item.get("quantity") or 0) <= 0:
+            score -= 1.0
+        return score
+
+    ranked = sorted(items, key=suitability, reverse=True)
+    return ranked[0] if suitability(ranked[0]) > 0 else None
+
 def compare_products(text: str) -> list[dict[str, Any]]:
+    # First: respect products explicitly named by the user.
+    # Example: "which is better for headache Panadol or Brufen" must compare
+    # Panadol with Brufen, not Panadol with another headache recommendation.
+    selected: list[dict[str, Any]] = _mentioned_products_in_query(text)
+    seen = {i["brand_name"].lower() for i in selected}
+
+    if len(selected) >= 2:
+        return selected[:3]
+
     # Extract product-like pieces around common separators; fallback to search the whole query.
-    clean = re.sub(r"\b(vs|versus|and|with|between|maben|mabyn)\b", "|", text, flags=re.IGNORECASE)
+    clean = re.sub(r"\b(vs|versus|and|or|with|between|maben|mabyn)\b", "|", text, flags=re.IGNORECASE)
     clean = re.sub(r"(قارن|مقارنه|مقارنة|الفرق|بين|و|ولا|مع)", "|", clean)
     pieces = [p.strip(" ?:-،,") for p in clean.split("|") if len(p.strip()) >= 2]
 
-    selected: list[dict[str, Any]] = []
-    seen = set()
     for piece in pieces:
-        # Skip generic comparison words.
         if len(_tokens(piece)) == 0:
             continue
         results = find_products_by_name(piece, limit=2)
@@ -383,7 +529,7 @@ def format_recommendations(items: list[dict[str, Any]], lang: str = "ar") -> str
     return "\n".join(lines)
 
 
-def format_comparison(items: list[dict[str, Any]], lang: str = "ar") -> str:
+def format_comparison(items: list[dict[str, Any]], lang: str = "ar", question: str = "") -> str:
     if len(items) < 2:
         return "محتاج اسم منتجين على الأقل عشان أعمل مقارنة." if lang == "ar" else "I need at least two product names to compare."
     if lang == "en":
@@ -396,9 +542,13 @@ def format_comparison(items: list[dict[str, Any]], lang: str = "ar") -> str:
                 f"  Main indication: {item['main_indication']}\n"
                 f"  Stock: {format_stock_line(item, 'en')}"
             )
-        available = [i for i in items if int(i.get("quantity") or 0) > 0]
-        if available:
-            lines.append(f"\nBest available option now: {available[0]['brand_name']}.")
+        best_need = _best_for_need(items, question) if question else None
+        if best_need:
+            lines.append(f"\nFor your need, the better match is: {best_need['brand_name']}.")
+        else:
+            available = [i for i in items if int(i.get("quantity") or 0) > 0]
+            if available:
+                lines.append(f"\nBest available option now: {available[0]['brand_name']}.")
         return "\n".join(lines)
 
     lines = ["مقارنة المنتجات:"]
@@ -410,9 +560,13 @@ def format_comparison(items: list[dict[str, Any]], lang: str = "ar") -> str:
             f"  المؤشر الأساسي: {item['main_indication']}\n"
             f"  المخزون: {format_stock_line(item, 'ar')}"
         )
-    available = [i for i in items if int(i.get("quantity") or 0) > 0]
-    if available:
-        lines.append(f"\nالأفضل المتاح حاليًا من ناحية المخزون: {available[0]['brand_name']}.")
+    best_need = _best_for_need(items, question) if question else None
+    if best_need:
+        lines.append(f"\nبالنسبة لاحتياجك، الأنسب هو: {best_need['brand_name']}.")
+    else:
+        available = [i for i in items if int(i.get("quantity") or 0) > 0]
+        if available:
+            lines.append(f"\nالأفضل المتاح حاليًا من ناحية المخزون: {available[0]['brand_name']}.")
     return "\n".join(lines)
 
 

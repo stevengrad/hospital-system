@@ -14,14 +14,6 @@ from app.tools.availability import get_available_slots
 from app.tools.booking import book_appointment
 from app.tools.chat_router import route_chat
 from app.tools.chat_free import handle_chat, maybe_answer_patient_data
-from app.tools.pharmacy_products import (
-    is_product_recommendation_question,
-    is_product_comparison_question,
-    recommend_products,
-    compare_products,
-    format_recommendations,
-    format_comparison,
-)
 from app.tools.health import db_ping
 
 from app.ai.vector_store import load_knowledge_base
@@ -151,75 +143,6 @@ def _run_chat_logic(req: FreeChatRequest):
     """
     original_text = req.text or ""
     effective_chat_id = _effective_chat_id(req)
-        # 0) Force pharmacy product recommendation/comparison before general help/RAG.
-    # This fixes Arabic and Franco questions like:
-    # "عايزة غسول للبشرة الدهنية"
-    # "3awza ghasol lel bashra el dohneya"
-        # 0) Pharmacy product recommendation/comparison FIRST.
-    # This must run before handle_chat returns the generic help message.
-    # 0) Pharmacy product recommendation/comparison FIRST.
-    # This catches Arabic + Franco before the generic help response.
-    try:
-        normalized_info = normalize_for_chat(original_text)
-        product_query = f"{original_text} {normalized_info.chat_text} {normalized_info.search_text}".lower().strip()
-        product_lang = normalized_info.language or ("ar" if any("\u0600" <= ch <= "\u06FF" for ch in original_text) else "en")
-
-        product_keywords = [
-            # Arabic
-            "غسول", "بشرة", "بشره", "دهنية", "دهنيه", "جافة", "جافه",
-            "حساسة", "حساسه", "حبوب", "أكني", "اكزيما", "مرطب", "كريم",
-            "سيروم", "واقي شمس", "منتج", "منتجات", "ترشيح", "رشح",
-            # English / Franco
-            "cleanser", "wash", "face wash", "oily", "dry", "sensitive",
-            "acne", "cream", "moisturizer", "serum", "sunscreen",
-            "ghasol", "ghasool", "gsol", "bashara", "bshra", "bashra",
-            "dohneya", "dohnia", "dohnya", "7obob", "hobob"
-        ]
-
-        wants_product = (
-            is_product_recommendation_question(product_query)
-            or any(k in product_query for k in product_keywords)
-        )
-
-        wants_compare = is_product_comparison_question(product_query)
-
-        if wants_compare:
-            items = compare_products(product_query)
-            if len(items) >= 2:
-                reply = format_comparison(items, lang=product_lang)
-                return {
-                    "intent": "product_comparison",
-                    "reply": reply,
-                    "answer": reply,
-                    "data": {"products": items},
-                }
-
-        if wants_product:
-            items = recommend_products(product_query, limit=5)
-            if items:
-                reply = format_recommendations(items, lang=product_lang)
-                return {
-                    "intent": "product_recommendation",
-                    "reply": reply,
-                    "answer": reply,
-                    "data": {"products": items},
-                }
-
-            reply = "مش لاقية منتجات مناسبة في ملف الصيدلية الحالي. تأكدي إن pharmacy_products.csv موجود داخل app/data."
-            return {
-                "intent": "product_recommendation_no_data",
-                "reply": reply,
-                "answer": reply,
-                "data": {"products": []},
-            }
-
-    except Exception as exc:
-        return {
-            "intent": "product_recommendation_error",
-            "reply": f"Product recommendation error: {exc}",
-            "answer": f"Product recommendation error: {exc}",
-            "data": {},
-        }
 
     if is_memory_reset_request(original_text):
         reset_conversation_memory(effective_chat_id)

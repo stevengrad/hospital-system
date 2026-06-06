@@ -277,7 +277,7 @@ def _triage_has_red_flags(text: str) -> bool:
         "مفيش حادث", "مافيش حادث", "مفيش اصابة", "مافيش اصابة", "لا يوجد اصابة",
         "مفيش فقدان تحكم", "مافيش فقدان تحكم", "لا يوجد فقدان تحكم",
         "no numbness", "no weakness", "no fever", "no trauma", "no injury",
-        "no accident", "no loss of bladder", "no loss of bowel", "not severe",
+        "no accident", "no loss of bladder", "no loss of bowel", "not severe", "not bad",
     ]
     strong_positive_red_flags = [
         "عندي تنميل", "في تنميل", "يوجد تنميل", "عندي ضعف", "في ضعف", "يوجد ضعف",
@@ -287,16 +287,46 @@ def _triage_has_red_flags(text: str) -> bool:
     if any(p in x for p in negated_red_flags) and not any(p in x for p in strong_positive_red_flags):
         return False
 
+    # Important: Arabic users may write "ألم بطن شديد" / "الم بطن شديد".
+    # The old check only matched the exact phrase "الم شديد", so it missed
+    # "الم بطن شديد" because "بطن" is between them.
+    pain_words = [
+        "الم", "الام", "وجع", "واجع", "يوجع", "بيوجع", "مغص", "تقلص", "تقلصات",
+        "صداع", "صداع نصفي", "حرقان", "حرقه", "حارق", "نغز", "نغزة", "نغزات",
+        "شد", "تشنج", "تشنجات", "وجعان", "مؤلم", "مؤلمة",
+        "pain", "painful", "ache", "aching", "sore", "soreness", "cramp", "cramps",
+        "cramping", "burning", "stinging", "sharp pain", "throbbing", "migraine",
+        "headache", "spasm", "spasms",
+    ]
+    severe_words = [
+        "شديد", "شديدة", "شده", "جامد", "جامدة", "جدا", "جداً", "اوي", "قوي",
+        "قوية", "فظيع", "فظيعة", "رهيب", "رهيبة", "قاتل", "مش قادر استحمل",
+        "مش قادرة استحمل", "مش محتمل", "مش محتملة", "لا يحتمل", "لا تحتمل",
+        "غير محتمل", "غير محتملة", "مستمر", "مستمرة", "مفاجئ", "مفاجئة",
+        "severe", "very severe", "extreme", "intense", "bad", "very bad",
+        "unbearable", "intolerable", "worst", "constant", "persistent", "sudden",
+    ]
+    if any(p in x for p in pain_words) and any(sv in x for sv in severe_words):
+        return True
+
     red_flags = [
-        # Arabic red flags
         "تنميل", "خدر", "ضعف", "مش قادر امشي", "مش قادرة امشي", "شلل",
-        "فقدان تحكم", "عدم تحكم", "بول", "براز", "سخونية", "حرارة", "حمى",
-        "حادث", "وقعت", "وقوع", "اصابة", "نزيف", "الم صدر", "ضيق نفس",
-        "الم شديد", "شديد جدا", "لا يحتمل", "مش محتمل", "قيء دم", "اغماء",
-        # English red flags
+        "فقدان تحكم", "عدم تحكم", "بول", "براز", "سلس بول", "سلس براز",
+        "سخونية", "حرارة", "حراره", "حمى", "حمي",
+        "حرارة عالية", "حراره عاليه", "سخونية عالية",
+        "حادث", "وقعت", "وقوع", "اصابة", "نزيف",
+        "الم صدر", "وجع صدر", "ضيق نفس", "نهجان شديد", "عرق شديد",
+        "الم شديد", "شديد جدا", "صداع شديد", "صداع مفاجئ",
+        "قيء دم", "ترجيع دم", "استفراغ دم", "اغماء", "فقدت الوعي",
+        "دوخة شديدة", "زغللة شديدة", "تشنجات", "براز اسود", "دم في البراز",
+
         "numbness", "weakness", "cannot walk", "can not walk", "paralysis",
-        "loss of bladder", "loss of bowel", "fever", "trauma", "injury", "accident",
-        "bleeding", "chest pain", "shortness of breath", "severe pain", "unbearable", "fainting",
+        "loss of bladder control", "loss of bowel control", "urine leakage", "stool leakage",
+        "fever", "high fever", "heat", "hot", "after trauma", "after injury", "after accident",
+        "bleeding", "severe chest pain", "chest pain", "shortness of breath", "heavy sweating",
+        "severe pain", "very severe", "unbearable pain", "sudden headache", "severe headache",
+        "vomiting blood", "bloody vomit", "fainting", "passed out", "severe dizziness",
+        "seizure", "seizures", "black stool", "blood in stool",
     ]
     return any(k in x for k in red_flags)
 
@@ -306,7 +336,7 @@ def _triage_is_reassuring(text: str) -> bool:
     reassuring = [
         "لا", "لأ", "لا يوجد", "مفيش", "مافيش", "مش موجود", "لا مفيش", "لا لا",
         "no", "nope", "none", "not severe", "no fever", "no numbness", "no weakness",
-        "خفيف", "متوسط", "محتمل", "normal", "mild", "moderate"
+        "خفيف", "خفيفه", "خفيفة", "بسيط", "بسيطه", "بسيطة", "حاجة بسيطة", "حاجه بسيطه", "متوسط", "محتمل", "normal", "mild", "moderate", "simple"
     ]
     # If the same message contains a red flag, red flag wins.
     return any(k in x for k in reassuring) and not _triage_has_red_flags(text)
@@ -375,6 +405,91 @@ def _triage_questions_for_specialty(specialty_name: str | None, lang: str) -> st
         "- high fever or sudden severe symptoms\n\n"
         "Reply: no, or describe the red flag."
     )
+
+
+
+def _pharmacy_symptom_triage_question(specialty_name: str | None, lang: str) -> str:
+    """Ask safety triage before recommending OTC/pharmacy products for symptom-like requests.
+
+    Example: "عايزة حاجة للمغص" should not immediately recommend medicine if the
+    user has red flags. We first ask the same safety options; then:
+    - dangerous/red flag -> doctor booking flow
+    - simple/no red flags -> pharmacy recommendations
+    """
+    base = _triage_questions_for_specialty(specialty_name, lang)
+    if lang == "ar":
+        return (
+            base
+            + "\n\nلو الحالة بسيطة ومفيش أي علامة من دول، اكتبي: بسيطة أو لا مفيش، "
+              "وساعتها أرشحلك أسماء أدوية/منتجات من صيدلية المستشفى."
+            + "\nلو عايزة تحجزي دكتور مباشرة اكتبي: احجز دكتور."
+        )
+    return (
+        base
+        + "\n\nIf it is mild/simple and none of these red flags exist, type: simple or no, "
+          "then I will recommend products from the hospital pharmacy."
+        + "\nIf you want to book a doctor directly, type: book doctor."
+    )
+
+
+def _start_pharmacy_symptom_triage(st: dict, chat_id: str, sid: int, query: str, lang: str) -> dict:
+    spec = get_specialty_by_id(int(sid))
+    st["pending_step"] = "pharmacy_symptom_triage"
+    st["pending_specialty_id"] = int(sid)
+    st["pending_pharmacy_query"] = query
+    _save_chat_state(chat_id, st)
+    return {
+        "intent": "pharmacy_symptom_triage",
+        "reply": _pharmacy_symptom_triage_question(spec.get("Name") if spec else None, lang),
+        "data": {"specialty_id": sid, "specialty": spec, "pharmacy_query": query},
+    }
+
+
+def _recommend_after_simple_triage(st: dict, chat_id: str, query: str, lang: str) -> dict:
+    items = recommend_products(query, limit=5)
+    st["pending_step"] = None
+    st.pop("pending_pharmacy_query", None)
+    if items:
+        st["last_product_recommendations"] = items
+        _save_chat_state(chat_id, st)
+        return {
+            "intent": "product_recommendation",
+            "reply": format_recommendations(items, lang=lang),
+            "data": {"products": items},
+        }
+    _save_chat_state(chat_id, st)
+    return {
+        "intent": "product_recommendation_not_found",
+        "reply": (
+            "الحالة بسيطة حسب كلامك، لكن مش لاقية منتج مناسب في ملف الصيدلية الحالي. ممكن تسألي الصيدلي أو تحجزي دكتور لو الأعراض مستمرة."
+            if lang == "ar" else
+            "Based on your answer it sounds mild, but I could not find a suitable product in the current pharmacy file. Please ask the pharmacist or book a doctor if symptoms continue."
+        ),
+        "data": {"products": []},
+    }
+
+
+def _begin_booking_after_red_flag(st: dict, chat_id: str, sid: int | None, lang: str) -> dict:
+    if sid is None:
+        return {
+            "intent": "symptom_triage_urgent",
+            "reply": (
+                "في علامة محتاجة تقييم طبي. الأفضل تحجزي دكتور أو تتواصلي مع الطوارئ لو الحالة شديدة."
+                if lang == "ar" else
+                "There is a red flag that needs medical assessment. Please book a doctor or contact emergency care if severe."
+            ),
+            "data": {"red_flags": True},
+        }
+    result = _begin_specialty_branch_choice(st, chat_id, int(sid), lang)
+    prefix = (
+        "طالما في علامة خطورة أو أعراض شديدة، الأفضل نحجز دكتور بدل ما أرشح دواء فقط.\n\n"
+        if lang == "ar" else
+        "Because there is a red flag or severe symptom, it is safer to book a doctor instead of only recommending medicine.\n\n"
+    )
+    result["intent"] = "symptom_triage_red_flag_booking"
+    result["reply"] = prefix + result.get("reply", "")
+    result.setdefault("data", {})["red_flags"] = True
+    return result
 
 
 def _begin_specialty_branch_choice(st: dict, chat_id: str, sid: int, lang: str) -> dict:
@@ -805,24 +920,55 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
         return _book_slot_with_patient(pid, pending)
 
     # ------------------------------------------------------------
+    # 0.70) If user asks for pharmacy product for a symptom, do NOT
+    # immediately recommend medicine. Ask the same safety options first:
+    # dangerous/red flag -> doctor booking, simple/no red flags -> products.
+    # ------------------------------------------------------------
+    if st.get("pending_step") == "symptom_triage" and is_product_recommendation_question(t):
+        sid_for_query = suggest_specialty_id(t) or st.get("pending_specialty_id")
+        if sid_for_query is not None:
+            return _start_pharmacy_symptom_triage(st, chat_id, int(sid_for_query), t, lang)
+
+    # ------------------------------------------------------------
+    # 0.72) Pharmacy symptom triage: after the bot asks safety options for
+    # requests like "عايزة حاجة للمغص".
+    # ------------------------------------------------------------
+    if st.get("pending_step") == "pharmacy_symptom_triage":
+       sid = st.get("pending_specialty_id")
+       original_query = st.get("pending_pharmacy_query") or t
+
+       if _triage_has_red_flags(t):
+          st.pop("pending_pharmacy_query", None)
+          st["pending_step"] = None
+          _save_chat_state(chat_id, st)
+          return _begin_booking_after_red_flag(st, chat_id, int(sid) if sid is not None else None, lang)
+
+       if _is_booking_start(t):
+          st.pop("pending_pharmacy_query", None)
+          st["pending_step"] = None
+          _save_chat_state(chat_id, st)
+          if sid is not None:
+             return _begin_specialty_branch_choice(st, chat_id, int(sid), lang)
+
+       if _triage_is_reassuring(t) or any(k in _norm_ar_en(t) for k in ["بسيط", "بسيطه", "بسيطة", "حاجه بسيطه", "حاجة بسيطة", "simple", "mild"]):
+          return _recommend_after_simple_triage(st, chat_id, original_query, lang)
+
+       st.pop("pending_pharmacy_query", None)
+       st["pending_step"] = None
+       _save_chat_state(chat_id, st)
+       return handle_chat(raw_t, chat_id=chat_id, patient_id=patient_id)
+
+    # ------------------------------------------------------------
     # 0.75) Symptom severity triage before booking slots
     # ------------------------------------------------------------
     if st.get("pending_step") == "symptom_triage":
         sid = st.get("pending_specialty_id")
         if _triage_has_red_flags(t):
+            # User already said a dangerous/severe symptom after the safety question.
+            # Do not repeat the same question; move directly to doctor booking options.
             st["pending_step"] = None
             _save_chat_state(chat_id, st)
-            return {
-                "intent": "symptom_triage_urgent",
-                "reply": (
-                    "في علامات محتاجة تقييم طبي سريع/طوارئ، خصوصًا لو الألم شديد أو مع تنميل/ضعف/حرارة/حادث. "
-                    "الأفضل تتواصلي مع الطوارئ أو طبيب فورًا. لو الحالة مستقرة وعايزة تكملي حجز عيادة اكتبي: متابعة الحجز"
-                    if lang == "ar" else
-                    "There are red flags that need urgent medical assessment, especially severe pain, numbness/weakness, fever, or trauma. "
-                    "Please contact emergency care or a doctor promptly. If stable and you still want clinic booking, type: continue booking"
-                ),
-                "data": {"specialty_id": sid, "red_flags": True},
-            }
+            return _begin_booking_after_red_flag(st, chat_id, int(sid) if sid is not None else None, lang)
 
         if _triage_is_reassuring(t) or any(k in _norm_ar_en(t) for k in ["متابعة الحجز", "كمل", "continue booking", "continue"]):
             st["pending_step"] = None
@@ -880,11 +1026,18 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
             _save_chat_state(chat_id, st)
             return {
                 "intent": "product_comparison",
-                "reply": format_comparison(items, lang=lang),
+                "reply": format_comparison(items, lang=lang, question=raw_t),
                 "data": {"products": items},
             }
 
     if is_product_recommendation_question(t):
+        # If the request is symptom-like (e.g. "عايزة حاجة للمغص"),
+        # ask safety triage before recommending pharmacy products.
+        # Non-symptom product needs like skincare continue directly.
+        sid_for_query = suggest_specialty_id(t)
+        if sid_for_query is not None:
+            return _start_pharmacy_symptom_triage(st, chat_id, int(sid_for_query), t, lang)
+
         items = recommend_products(t, limit=5)
         if items:
             st["last_product_recommendations"] = items
@@ -966,15 +1119,9 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
         # Triage before showing slots. If the original symptom message already
         # contains red flags, warn immediately. Otherwise ask a short safety check.
         if _triage_has_red_flags(t):
-            return {
-                "intent": "symptom_triage_urgent",
-                "reply": (
-                    "الأعراض فيها علامة محتاجة تقييم سريع/طوارئ. لو في ألم شديد جدًا، تنميل/ضعف، حرارة عالية، أو إصابة/وقعة، الأفضل تتواصلي مع الطوارئ أو طبيب فورًا."
-                    if lang == "ar" else
-                    "Your symptoms include a red flag that may need urgent assessment. Severe pain, numbness/weakness, high fever, or trauma should be checked urgently."
-                ),
-                "data": {"specialty_id": sid, "specialty": spec, "red_flags": True},
-            }
+            # Direct severe symptom like "ألم بطن شديد" should not ask the triage
+            # question again. It should advise doctor booking and show branch options.
+            return _begin_booking_after_red_flag(st, chat_id, int(sid), lang)
 
         st["pending_specialty_id"] = int(sid)
         st["pending_step"] = "symptom_triage"
