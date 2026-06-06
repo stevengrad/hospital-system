@@ -1,0 +1,93 @@
+version: "3.9"
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile.php
+    container_name: hospital-php
+    restart: unless-stopped
+    environment:
+      DB_HOST: database-1.c7q2cy4m6u0p.eu-central-1.rds.amazonaws.com
+      DB_PORT: 3306
+      DB_NAME: hospital_system
+      DB_USER: mysqldb2026
+      DB_PASSWORD: mysqldb2026
+      SMTP_USER: cairohospitals0@gmail.com
+      SMTP_PASS: dnpoxjybarrdwhxd 
+      CHATBOT_API_URL: http://chatbot:8000/chat/free
+      # Face API URL used by register.php
+      FACE_API_URL: http://face-api:5001/face/register_face
+
+      # Optional only if you still use reload_db somewhere
+      FACE_RELOAD_URL: http://face-api:5001/reload_db
+      FACE_DELETE_URL: http://face-api:5001/face/delete_user
+    
+
+      # Recommended: move Gmail credentials here instead of hardcoding in PHP
+      # SMTP_USER: cairohospitals0@gmail.com
+      # SMTP_PASS: your_gmail_app_password
+
+    depends_on:
+      - chatbot
+      - face-api
+
+    volumes:
+      - .:/var/www/html
+
+  nginx:
+   build:
+    context: .
+    dockerfile: Dockerfile.nginx
+   container_name: hospital-nginx
+   restart: unless-stopped
+   ports:
+    - "8080:80"
+   depends_on:
+    - php
+    - chatbot
+    - face-api
+   volumes:
+    - .:/var/www/html
+    - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+  chatbot:
+    build:
+      context: ./hospital-assistant-python
+      dockerfile: Dockerfile
+    container_name: hospital-chatbot
+    restart: unless-stopped
+    environment:
+      MYSQL_URL: mysql+pymysql://mysqldb2026:mysqldb2026@database-1.c7q2cy4m6u0p.eu-central-1.rds.amazonaws.com:3306/hospital_system
+      SLOT_MINUTES: 30
+    ports:
+      - "8000:8000"
+
+  face-api:
+    build:
+      context: ./FFace_Recognition_System _Depi_stud
+      dockerfile: Dockerfile
+    container_name: hospital-face-api
+    restart: unless-stopped
+    environment:
+      # S3 settings for face images and embeddings
+      FACE_S3_BUCKET: cairo-hospital-face-images-137068224200
+      AWS_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      FACE_S3_PREFIX: faces
+      # Optional DeepFace settings
+      FACE_MODEL_NAME: Facenet
+      FACE_DETECTOR_BACKEND: opencv
+      FACE_DISTANCE_METRIC: cosine
+      FACE_THRESHOLD: 0.40
+    ports:
+      - "5001:5001"
+  ocr-api:
+    build:
+      context: D:/hospital/hospital/ocr
+      dockerfile: Dockerfile
+    container_name: hospital-ocr-api
+    ports:
+      - "5050:5050"
+    restart: unless-stopped

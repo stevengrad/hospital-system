@@ -1,0 +1,25 @@
+.git
+.gitignore
+.vscode
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+.env
+.env.*
+node_modules
+README.md
+
+hospital-assistant-python/.venv
+hospital-assistant-python/__pycache__
+
+FFace_Recognition_System _Depi_stud/.venv
+FFace_Recognition_System _Depi_stud/__pycache__
+FFace_Recognition_System _Depi_stud/Face_rec_training
+FFace_Recognition_System _Depi_stud/detector_training
+FFace_Recognition_System _Depi_stud/YOLOv8 Face Detection Training Flowchart_files
+FFace_Recognition_System _Depi_stud/*.html

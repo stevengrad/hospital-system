@@ -1867,7 +1867,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ocrStatus.style.color = "#64748b";
 
         try {
-            const response = await fetch("http://localhost:5050/ocr/extract-id", {
+            const response = await fetch("/ocr/extract-id", {
                 method: "POST",
                 body: formData
             });

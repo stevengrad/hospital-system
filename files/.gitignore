@@ -1,0 +1,51 @@
+# Environment files
+.env
+*.env
+notepad.env
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+
+# Runtime chatbot files
+.chat_state/
+.chat_memory/
+.chat_feedback/
+
+# Uploads and user files
+uploads/
+uploads/prescriptions/
+
+# Logs
+*.log
+logs/
+
+# AI / ML models and generated data
+*.pt
+*.pth
+*.pkl
+*.onnx
+*.h5
+*.bin
+*.safetensors
+
+# EasyOCR / HuggingFace cache
+.easyocr/
+.cache/
+models/
+
+# OS files
+.DS_Store
+Thumbs.db

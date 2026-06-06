@@ -113,11 +113,15 @@ $payloadArr = [
 
 $payload = json_encode($payloadArr, JSON_UNESCAPED_UNICODE);
 
-$ch = curl_init("http://127.0.0.1:8000/book");
+$bookUrl = getenv("CHATBOT_BOOK_URL") ?: "https://cairohospitals.click/chat/book";
+
+$ch = curl_init($bookUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
 $response = curl_exec($ch);
 
@@ -125,12 +129,20 @@ if ($response === false) {
     $err = curl_error($ch);
     curl_close($ch);
 
-    http_response_code(500);
-    echo json_encode([
-        "booked" => false,
-        "message" => "Failed to connect to FastAPI /book",
-        "details" => $err
-    ], JSON_UNESCAPED_UNICODE);
+http_response_code($http ?: 500);
+echo json_encode([
+    "booked" => false,
+    "message" => "FastAPI booking failed",
+    "book_url" => $bookUrl,
+    "http_code" => $http,
+    "fastapi_response" => $decoded ?: $response,
+    "debug" => [
+        "patient_id" => $patient_id,
+        "doctor_id" => $doctor_id,
+        "branch_id" => $branch_id,
+        "start" => $start
+    ]
+], JSON_UNESCAPED_UNICODE);
     exit();
 }
 
