@@ -193,6 +193,22 @@ $texts = [
 
 $t = $texts[$lang];
 $error = '';
+
+if (isset($_GET['error']) && $_GET['error'] === 'nid_exists') {
+    $error = $texts[$lang]['nid_exists'];
+}
+
+if (isset($_GET['error']) && $_GET['error'] === 'verification_expired') {
+    $error = "";
+}
+
+if (isset($_GET['error']) && $_GET['error'] === 'registration_failed') {
+    $error = "Registration failed. Please try again.";
+}
+
+if (isset($_GET['error']) && $_GET['error'] === 'db_error') {
+    $error = $texts[$lang]['db_error'];
+}
 $success_notice = '';
 $fieldErrors = [];
 $old = [];
@@ -408,6 +424,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
         'email'=>$email,
         'contact_number'=>$contact_number,
         'national_id_photo'=>$old_national_id_photo,
+        'face_images_json'=>$face_images_json,
     ];
 
     $plainPasswordForEmail = $password;
@@ -499,99 +516,141 @@ $face_saved_ok = count($faceImagesForApi) >= 6;
     if(!$has_new_nid_photo && !$has_old_nid_photo){ $fieldErrors['nid_photo'] = $t['error_fill']; }
     if(!$face_saved_ok){ $fieldErrors['face_images_json'] = $t['face_required']; }
 
-    if (empty($fieldErrors)) {
-        $stmtCheckUser = $conn->prepare("SELECT id FROM registration WHERE username = ? LIMIT 1");
-        $stmtCheckUser->bind_param("s", $username);
-        $stmtCheckUser->execute();
-        $stmtCheckUser->store_result();
+    if (empty($fieldErrors) && empty($error)) {
 
-        if($stmtCheckUser->num_rows > 0){
-            $fieldErrors['username'] = $t['username_exists'];
+        /*
+           Block only real registered accounts.
+           Pending/expired registrations should NOT block the user from trying again.
+        */
+  $stmtRealNID = $conn->prepare("
+    SELECT national_id FROM (
+        SELECT national_id FROM registration WHERE national_id = ?
+        UNION
+        SELECT national_id FROM login WHERE national_id = ?
+    ) AS real_accounts
+    LIMIT 1
+");
+
+        if (!$stmtRealNID) {
+            $error = $t['db_error'] . " (real NID check): " . $conn->error;
         } else {
-            $stmtCheckNID = $conn->prepare("SELECT id FROM registration WHERE national_id = ? LIMIT 1");
-            $stmtCheckNID->bind_param("s", $national_id);
-            $stmtCheckNID->execute();
-            $stmtCheckNID->store_result();
+            $stmtRealNID->bind_param("ss", $national_id, $national_id);
+            $stmtRealNID->execute();
+            $stmtRealNID->store_result();
 
-            if($stmtCheckNID->num_rows > 0){
+            if ($stmtRealNID->num_rows > 0) {
                 $fieldErrors['national_id'] = $t['nid_exists'];
-            } else {
-                $stmtPending = $conn->prepare("SELECT id, status, expires_at FROM pending_registrations WHERE (username = ? OR national_id = ? OR email = ?) AND status = 'pending' LIMIT 1");
-
-                if(!$stmtPending){
-                    $error = $t['db_error'] . " (pending check): " . $conn->error;
-                } else {
-                    $stmtPending->bind_param("sss", $username, $national_id, $email);
-                    $stmtPending->execute();
-                    $pendingResult = $stmtPending->get_result();
-                    $pendingRow = $pendingResult ? $pendingResult->fetch_assoc() : null;
-
-                    if($pendingRow && strtotime($pendingRow['expires_at']) >= time()){
-                        $error = "A verification email was already sent. Please check your email or wait until the link expires.";
-                    } else {
-                        $expireOld = $conn->prepare("UPDATE pending_registrations SET status='expired' WHERE (username = ? OR national_id = ? OR email = ?) AND status='pending'");
-                        if($expireOld){
-                            $expireOld->bind_param("sss", $username, $national_id, $email);
-                            $expireOld->execute();
-                        }
-
-                        $hashed = password_hash($password, PASSWORD_DEFAULT);
-                        $token = bin2hex(random_bytes(32));
-                        $expiresSeconds = 600;
-                        $expiresAt = date('Y-m-d H:i:s', time() + $expiresSeconds);
-
-                        $stmtInsertPending = $conn->prepare("
-                            INSERT INTO pending_registrations
-                            (token, first_name, last_name, username, password_hash, national_id, national_id_photo, gender, government, birthdate, address, email, phone_number, face_images_json, status, expires_at)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending', ?)
-                        ");
-
-                        if(!$stmtInsertPending){
-                            $error = $t['db_error'] . " (pending insert): " . $conn->error;
-                        } else {
-                            $stmtInsertPending->bind_param(
-                                "sssssssssssssss",
-                                $token,
-                                $first_name,
-                                $last_name,
-                                $username,
-                                $hashed,
-                                $national_id,
-                                $nid_photo_path,
-                                $gender,
-                                $governorate,
-                                $birthdate,
-                                $address,
-                                $email,
-                                $contact_number,
-                                $face_images_json,
-                                $expiresAt
-                            );
-
-                            if($stmtInsertPending->execute()){
-                                $verifyUrl = app_base_url() . "/verify_email.php?token=" . urlencode($token);
-
-                                $mailResult = sendVerificationEmailSMTP(
-                                    $email,
-                                    $username,
-                                    $plainPasswordForEmail,
-                                    $verifyUrl,
-                                    $expiresSeconds
-                                );
-
-                                if (!$mailResult['ok']) {
-                                    $error = 'Mail error: ' . $mailResult['reason'];
-                                } else {
-                                    header("Location:waiting_verification.php?token=" . urlencode($token));
-                                    exit();
-                                }
-                            } else {
-                                $error = $t['db_error'] . ": Failed to save pending registration: " . $stmtInsertPending->error;
-                            }
-                        }
-                    }
-                }
             }
+
+            $stmtRealNID->close();
+        }
+    }
+
+    if (empty($fieldErrors) && empty($error)) {
+
+        /*
+           Check username only in real accounts.
+           Old pending attempts should not block a new try.
+        */
+        $stmtCheckUser = $conn->prepare("
+    SELECT username FROM (
+        SELECT username FROM registration WHERE username = ?
+        UNION
+        SELECT username FROM login WHERE username = ?
+    ) AS real_users
+    LIMIT 1
+");
+
+        if (!$stmtCheckUser) {
+            $error = $t['db_error'] . " (username check): " . $conn->error;
+        } else {
+            $stmtCheckUser->bind_param("ss", $username, $username);
+            $stmtCheckUser->execute();
+            $stmtCheckUser->store_result();
+
+            if ($stmtCheckUser->num_rows > 0) {
+                $fieldErrors['username'] = $t['username_exists'];
+            }
+
+            $stmtCheckUser->close();
+        }
+    }
+
+    if (empty($fieldErrors) && empty($error)) {
+
+        /*
+           Allow retry:
+           Expire old pending attempts for same username / national_id / email.
+           Do not show "verification email already sent".
+        */
+        $expireOld = $conn->prepare("
+            UPDATE pending_registrations
+            SET status='expired'
+            WHERE (username = ? OR national_id = ? OR email = ?)
+              AND status='pending'
+        ");
+
+        if ($expireOld) {
+            $expireOld->bind_param("sss", $username, $national_id, $email);
+            $expireOld->execute();
+            $expireOld->close();
+        }
+
+        $hashed = password_hash($password, PASSWORD_DEFAULT);
+        $token = bin2hex(random_bytes(32));
+        $expiresSeconds = 180;
+         $expires_at = date('Y-m-d H:i:s', time() + (3 * 60));
+
+        $stmtInsertPending = $conn->prepare("
+            INSERT INTO pending_registrations
+            (token, first_name, last_name, username, password_hash, national_id, national_id_photo, gender, government, birthdate, address, email, phone_number, face_images_json, status, expires_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'pending', ?)
+        ");
+
+        if (!$stmtInsertPending) {
+            $error = $t['db_error'] . " (pending insert): " . $conn->error;
+        } else {
+            $stmtInsertPending->bind_param(
+                "sssssssssssssss",
+                $token,
+                $first_name,
+                $last_name,
+                $username,
+                $hashed,
+                $national_id,
+                $nid_photo_path,
+                $gender,
+                $governorate,
+                $birthdate,
+                $address,
+                $email,
+                $contact_number,
+                $face_images_json,
+                $expires_at
+            );
+
+            if ($stmtInsertPending->execute()) {
+                $verifyUrl = app_base_url() . "/verify_email.php?token=" . urlencode($token);
+
+                $mailResult = sendVerificationEmailSMTP(
+                    $email,
+                    $username,
+                    $plainPasswordForEmail,
+                    $verifyUrl,
+                    $expiresSeconds
+                );
+
+                if (!$mailResult['ok']) {
+                    $error = 'Mail error: ' . $mailResult['reason'];
+                } else {
+                    header("Location:waiting_verification.php?token=" . urlencode($token));
+                    exit();
+                }
+            } else {
+                $error = $t['db_error'] . ": Failed to save pending registration: " . $stmtInsertPending->error;
+            }
+
+            $stmtInsertPending->close();
         }
     }
 }
@@ -1390,7 +1449,7 @@ body{
                     <label class="field-label"><?= htmlspecialchars($t['national_id']) ?></label>
                     <div class="input-wrap">
                         <i class="fa-solid fa-id-card icon"></i>
-                      <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" readonly required>
+                      <input class="form-input" type="text" name="national_id" id="national_id" maxlength="14" value="<?= old_value('national_id', $old) ?>" readonly required>
                     </div>
                     <?= field_error('national_id', $fieldErrors) ?>
                     <div class="field-error client-error" id="national_id_error"></div>
@@ -1540,7 +1599,7 @@ body{
 
                 <div class="counter-box" id="faceCounter"></div>
                 <div class="face-status" id="faceStatus"></div>
-                <input type="hidden" name="face_images_json" id="face_images_json">
+                <input type="hidden" name="face_images_json" id="face_images_json" value="<?= old_value('face_images_json', $old) ?>">
                 <?= field_error('face_images_json', $fieldErrors) ?>
                 <div class="field-error client-error" id="face_images_json_error"></div>
             </div>
@@ -1867,7 +1926,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ocrStatus.style.color = "#64748b";
 
         try {
-            const response = await fetch("/ocr/extract-id", {
+            const response = await fetch("http://localhost:5050/ocr/extract-id", {
                 method: "POST",
                 body: formData
             });
@@ -1907,7 +1966,7 @@ document.addEventListener("DOMContentLoaded", function () {
             nationalIdInput.setAttribute("readonly", "readonly");
             nationalIdInput.removeAttribute("disabled");
 
-            ocrStatus.textContent = "OCR service error. Please upload the image again.";
+            ocrStatus.textContent = "OCR service error. Pl ease upload the image again.";
             ocrStatus.style.color = "#dc2626";
         }
     });

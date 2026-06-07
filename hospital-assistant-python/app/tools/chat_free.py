@@ -446,9 +446,27 @@ def _start_pharmacy_symptom_triage(st: dict, chat_id: str, sid: int, query: str,
 
 
 def _recommend_after_simple_triage(st: dict, chat_id: str, query: str, lang: str) -> dict:
-    items = recommend_products(query, limit=5)
+    # Clear temporary triage state first, so if recommendation fails,
+    # the user will not be stuck in pharmacy_symptom_triage.
     st["pending_step"] = None
     st.pop("pending_pharmacy_query", None)
+    _save_chat_state(chat_id, st)
+
+    try:
+        items = recommend_products(query, limit=5)
+    except Exception as e:
+        return {
+            "intent": "product_recommendation_error",
+            "reply": (
+                "الحالة بسيطة حسب كلامك، لكن حصل خطأ وأنا بدور على منتج مناسب من صيدلية المستشفى. "
+                "ممكن تكتبي اسم المنتج مباشرة أو تحجزي دكتور لو الألم مستمر."
+                if lang == "ar" else
+                "Based on your answer it sounds mild, but an error happened while searching pharmacy products. "
+                "You can type the product name directly or book a doctor if symptoms continue."
+            ),
+            "data": {"error": str(e), "query": query},
+        }
+
     if items:
         st["last_product_recommendations"] = items
         _save_chat_state(chat_id, st)
@@ -457,13 +475,15 @@ def _recommend_after_simple_triage(st: dict, chat_id: str, query: str, lang: str
             "reply": format_recommendations(items, lang=lang),
             "data": {"products": items},
         }
-    _save_chat_state(chat_id, st)
+
     return {
         "intent": "product_recommendation_not_found",
         "reply": (
-            "الحالة بسيطة حسب كلامك، لكن مش لاقية منتج مناسب في ملف الصيدلية الحالي. ممكن تسألي الصيدلي أو تحجزي دكتور لو الأعراض مستمرة."
+            "الحالة بسيطة حسب كلامك، لكن مش لاقية منتج مناسب في ملف الصيدلية الحالي. "
+            "ممكن تسألي الصيدلي أو تحجزي دكتور لو الأعراض مستمرة."
             if lang == "ar" else
-            "Based on your answer it sounds mild, but I could not find a suitable product in the current pharmacy file. Please ask the pharmacist or book a doctor if symptoms continue."
+            "Based on your answer it sounds mild, but I could not find a suitable product in the current pharmacy file. "
+            "Please ask the pharmacist or book a doctor if symptoms continue."
         ),
         "data": {"products": []},
     }
@@ -934,29 +954,31 @@ def handle_chat(text: str, chat_id: str = "web", patient_id: int | None = None) 
     # requests like "عايزة حاجة للمغص".
     # ------------------------------------------------------------
     if st.get("pending_step") == "pharmacy_symptom_triage":
-       sid = st.get("pending_specialty_id")
-       original_query = st.get("pending_pharmacy_query") or t
+        sid = st.get("pending_specialty_id")
+        original_query = st.get("pending_pharmacy_query") or t
 
-       if _triage_has_red_flags(t):
-          st.pop("pending_pharmacy_query", None)
-          st["pending_step"] = None
-          _save_chat_state(chat_id, st)
-          return _begin_booking_after_red_flag(st, chat_id, int(sid) if sid is not None else None, lang)
+        if _triage_has_red_flags(t):
+            st.pop("pending_pharmacy_query", None)
+            st["pending_step"] = None
+            _save_chat_state(chat_id, st)
+            return _begin_booking_after_red_flag(st, chat_id, int(sid) if sid is not None else None, lang)
 
-       if _is_booking_start(t):
-          st.pop("pending_pharmacy_query", None)
-          st["pending_step"] = None
-          _save_chat_state(chat_id, st)
-          if sid is not None:
-             return _begin_specialty_branch_choice(st, chat_id, int(sid), lang)
+        if _is_booking_start(t):
+            st.pop("pending_pharmacy_query", None)
+            st["pending_step"] = None
+            _save_chat_state(chat_id, st)
+            if sid is not None:
+                return _begin_specialty_branch_choice(st, chat_id, int(sid), lang)
 
-       if _triage_is_reassuring(t) or any(k in _norm_ar_en(t) for k in ["بسيط", "بسيطه", "بسيطة", "حاجه بسيطه", "حاجة بسيطة", "simple", "mild"]):
-          return _recommend_after_simple_triage(st, chat_id, original_query, lang)
+        if _triage_is_reassuring(t) or any(k in _norm_ar_en(t) for k in ["بسيط", "بسيطه", "بسيطة", "حاجه بسيطه", "حاجة بسيطة", "simple", "mild"]):
+            return _recommend_after_simple_triage(st, chat_id, original_query, lang)
 
-       st.pop("pending_pharmacy_query", None)
-       st["pending_step"] = None
-       _save_chat_state(chat_id, st)
-       return handle_chat(raw_t, chat_id=chat_id, patient_id=patient_id)
+        spec = get_specialty_by_id(int(sid)) if sid is not None else None
+        return {
+            "intent": "pharmacy_symptom_triage",
+            "reply": _pharmacy_symptom_triage_question(spec.get("Name") if spec else None, lang),
+            "data": {"specialty_id": sid, "pharmacy_query": original_query},
+        }
 
     # ------------------------------------------------------------
     # 0.75) Symptom severity triage before booking slots

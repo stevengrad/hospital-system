@@ -40,6 +40,11 @@ $texts = [
         'role_doctor'    => 'Doctor',
         'role_patient'   => 'Patient',
         'title_icon'     => '👤',
+        'search_label'   => 'Search by Username or National ID',
+'search_placeholder' => 'Enter username or national ID...',
+        'search_btn'     => 'Search',
+        'clear_btn'      => 'Clear',
+        'search_results' => 'Search results for',
     ],
     'ar' => [
         'page_title'     => 'إدارة المستخدمين',
@@ -57,6 +62,11 @@ $texts = [
         'role_doctor'    => 'طبيب',
         'role_patient'   => 'مريض',
         'title_icon'     => '👤',
+        'search_label'   => 'البحث باسم المستخدم أو الرقم القومي',
+'search_placeholder' => 'اكتب اسم المستخدم أو الرقم القومي...',
+        'search_btn'     => 'بحث',
+        'clear_btn'      => 'مسح',
+        'search_results' => 'نتائج البحث عن',
     ]
 ];
 
@@ -75,10 +85,32 @@ function col($row, ...$names) {
 }
 
 /* -------------------------
-   4) FETCH USERS
+   4) FETCH USERS WITH USERNAME OR NATIONAL ID SEARCH
 -------------------------- */
-$sql = "SELECT * FROM registration ORDER BY id ASC";
-$result = $conn->query($sql);
+$userSearch = trim($_GET['user_search'] ?? '');
+
+if ($userSearch !== '') {
+    $likeSearch = '%' . $userSearch . '%';
+
+    $stmtUsers = $conn->prepare("
+        SELECT *
+        FROM registration
+        WHERE username LIKE ?
+           OR national_id LIKE ?
+        ORDER BY id ASC
+    ");
+
+    if (!$stmtUsers) {
+        die("Database prepare error: " . $conn->error);
+    }
+
+    $stmtUsers->bind_param("ss", $likeSearch, $likeSearch);
+    $stmtUsers->execute();
+    $result = $stmtUsers->get_result();
+} else {
+    $sql = "SELECT * FROM registration ORDER BY id ASC";
+    $result = $conn->query($sql);
+}
 
 /* -------------------------
    5) MAP DB ROLE TO DISPLAY TEXT
@@ -383,6 +415,114 @@ function translateRole($dbRole, $lang, $texts) {
             background:linear-gradient(135deg, var(--danger-1), var(--danger-2));
         }
 
+
+        .search-panel{
+            border-radius:var(--radius-xl);
+            padding:20px 22px;
+            margin-bottom:22px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:14px;
+            flex-wrap:wrap;
+        }
+
+        .search-title{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            font-weight:800;
+            color:#fff;
+            font-size:16px;
+        }
+
+        .search-form{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+            flex:1;
+            justify-content:flex-end;
+        }
+
+        .search-input-wrap{
+            position:relative;
+            min-width:260px;
+            flex:0 1 380px;
+        }
+
+        .search-input-wrap i{
+            position:absolute;
+            top:50%;
+            transform:translateY(-50%);
+            left:14px;
+            color:rgba(255,255,255,0.65);
+            pointer-events:none;
+        }
+
+        html[dir="rtl"] .search-input-wrap i{
+            left:auto;
+            right:14px;
+        }
+
+        .search-input{
+            width:100%;
+            border:none;
+            outline:none;
+            padding:13px 16px 13px 42px;
+            border-radius:15px;
+            background:rgba(255,255,255,0.14);
+            border:1px solid rgba(255,255,255,0.14);
+            color:#fff;
+            font-size:14px;
+            font-weight:600;
+        }
+
+        html[dir="rtl"] .search-input{
+            padding:13px 42px 13px 16px;
+        }
+
+        .search-input::placeholder{
+            color:rgba(255,255,255,0.55);
+        }
+
+        .search-btn,
+        .clear-search-btn{
+            border:none;
+            padding:13px 17px;
+            border-radius:14px;
+            cursor:pointer;
+            font-weight:800;
+            transition:0.25s ease;
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            white-space:nowrap;
+        }
+
+        .search-btn{
+            background:linear-gradient(135deg, var(--primary), var(--primary-2));
+            color:#fff;
+            box-shadow:0 10px 22px rgba(72,149,239,0.24);
+        }
+
+        .clear-search-btn{
+            background:rgba(255,255,255,0.90);
+            color:#0f3d68;
+        }
+
+        .search-btn:hover,
+        .clear-search-btn:hover{
+            transform:translateY(-2px);
+        }
+
+        .search-info{
+            width:100%;
+            color:var(--text-soft);
+            font-size:13px;
+            font-weight:700;
+        }
+
         .table-panel{
             border-radius:var(--radius-xl);
             padding:22px;
@@ -639,6 +779,48 @@ function translateRole($dbRole, $lang, $texts) {
             <?= htmlspecialchars($_GET['msg']) ?>
         </div>
     <?php endif; ?>
+
+    <section class="search-panel glass">
+        <div class="search-title">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span><?= htmlspecialchars($t['search_label']) ?></span>
+        </div>
+
+        <form class="search-form" method="get" action="">
+            <input type="hidden" name="lang" value="<?= htmlspecialchars($lang) ?>">
+
+            <div class="search-input-wrap">
+    <i class="fa-solid fa-id-card"></i>
+    <input
+        class="search-input"
+        type="text"
+        name="user_search"
+        value="<?= htmlspecialchars($userSearch) ?>"
+        placeholder="<?= htmlspecialchars($t['search_placeholder']) ?>"
+        autocomplete="off"
+    >
+</div>
+
+            <button class="search-btn" type="submit">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <span><?= htmlspecialchars($t['search_btn']) ?></span>
+            </button>
+
+           <?php if ($userSearch !== ''): ?>
+    <a class="clear-search-btn" href="?lang=<?= urlencode($lang) ?>">
+        <i class="fa-solid fa-xmark"></i>
+        <span><?= htmlspecialchars($t['clear_btn']) ?></span>
+    </a>
+<?php endif; ?>
+
+<?php if ($userSearch !== ''): ?>
+    <div class="search-info">
+        <?= htmlspecialchars($t['search_results']) ?>:
+        <strong><?= htmlspecialchars($userSearch) ?></strong>
+    </div>
+<?php endif; ?>
+        </form>
+    </section>
 
     <section class="table-panel glass">
         <div class="table-wrap">

@@ -68,5 +68,10 @@ setInterval(async () => {
     }
 }, 3000);
 </script>
+<script>
+setTimeout(function () {
+    window.location.href = "register.php?error=verification_expired";
+}, 60000);
+</script>
 </body>
 </html>
