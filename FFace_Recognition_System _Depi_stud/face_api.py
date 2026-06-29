@@ -565,6 +565,8 @@ def delete_face_user():
             "error": str(e),
             "traceback": traceback.format_exc()
         }), 500
+@app.route("/face/verify_face", methods=["POST"])
+@app.route("/verify_face", methods=["POST"])
 def verify_face():
     """
     Expected JSON:

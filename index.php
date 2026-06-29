@@ -993,74 +993,99 @@ document.getElementById('capture-face').addEventListener('click', async () => {
         : "Verifying face...";
 
     try {
-        const response = await fetch("/face/verify_face", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                image: imageData
-            })
-        });
+    const response = await fetch("/face/verify_face", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+            image: imageData
+        })
+    });
 
-        const text = await response.text();
-        let data;
+    const text = await response.text();
 
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            console.error("Face API returned non-JSON:", text);
-            throw new Error("Face API returned invalid response");
-        }
+    console.log("Face API HTTP status:", response.status);
+    console.log("Face API raw response:", text);
 
-        if (!response.ok || data.success === false) {
-            faceVerifiedField.value = "0";
-            faceIdentityField.value = "";
-            bannerEl.style.display = "none";
-            statusEl.textContent = data.error || data.message || ((lang === 'ar') ? "فشل التحقق." : "Verification failed.");
-            return;
-        }
+    let data = null;
 
-        const faceMatched = Boolean(data.matched || data.verified);
-        const identity = data.identity || data.username || data.patient_username || "";
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+    faceVerifiedField.value = "0";
+    faceIdentityField.value = "";
+    bannerEl.style.display = "none";
 
-        if (faceMatched && identity && identity !== "unknown") {
-            faceVerifiedField.value = "1";
-            faceIdentityField.value = identity;
+    statusEl.textContent = (lang === 'ar')
+        ? "رد خدمة الوجه ليس JSON: " + text.substring(0, 200)
+        : "Face API non-JSON response: " + text.substring(0, 200);
 
-            bannerEl.style.display = "block";
-            statusEl.textContent = (lang === 'ar')
-                ? `تم التعرف على: ${identity}`
-                : `Recognized as: ${identity}`;
+    console.error("Face API non-JSON response:", text);
+    return;
+}
 
-            stopCamera();
-
-            setTimeout(() => {
-                document.getElementById('face-login-form').submit();
-            }, 700);
-
-        } else {
-            faceVerifiedField.value = "0";
-            faceIdentityField.value = "";
-            bannerEl.style.display = "none";
-            const details = (data.distance !== undefined && data.threshold !== undefined)
-                ? ` Distance: ${data.distance}, threshold: ${data.threshold}`
-                : "";
-
-            statusEl.textContent = (lang === 'ar')
-                ? "الوجه غير مسجل أو غير مطابق في قاعدة البيانات." + details
-                : "Face not found or not matched in database." + details;
-        }
-
-    } catch (err) {
-        console.error(err);
+    if (!response.ok || data.success === false) {
         faceVerifiedField.value = "0";
         faceIdentityField.value = "";
         bannerEl.style.display = "none";
-        statusEl.textContent = (lang === 'ar')
-            ? "تعذر الاتصال بخدمة التعرف على الوجه."
-            : "Could not connect to face recognition service.";
+
+        statusEl.textContent = data.error || data.message || (
+            (lang === 'ar')
+                ? "فشل التحقق من الوجه. HTTP " + response.status
+                : "Face verification failed. HTTP " + response.status
+        );
+
+        console.error("Face verification failed:", data);
+        return;
     }
+
+    const faceMatched = Boolean(data.matched || data.verified);
+    const identity = data.identity || data.username || data.patient_username || "";
+
+    if (faceMatched && identity && identity !== "unknown") {
+        faceVerifiedField.value = "1";
+        faceIdentityField.value = identity;
+
+        bannerEl.style.display = "block";
+        statusEl.textContent = (lang === 'ar')
+            ? `تم التعرف على: ${identity}`
+            : `Recognized as: ${identity}`;
+
+        stopCamera();
+
+        setTimeout(() => {
+            document.getElementById('face-login-form').submit();
+        }, 700);
+
+    } else {
+        faceVerifiedField.value = "0";
+        faceIdentityField.value = "";
+        bannerEl.style.display = "none";
+
+        const details = (data.distance !== undefined && data.threshold !== undefined)
+            ? ` Distance: ${data.distance}, threshold: ${data.threshold}`
+            : "";
+
+        statusEl.textContent = (lang === 'ar')
+            ? "الوجه غير مسجل أو غير مطابق في قاعدة البيانات." + details
+            : "Face not found or not matched in database." + details;
+
+        console.warn("Face not matched:", data);
+    }
+
+} catch (err) {
+    console.error("Face fetch error:", err);
+
+    faceVerifiedField.value = "0";
+    faceIdentityField.value = "";
+    bannerEl.style.display = "none";
+
+    statusEl.textContent = (lang === 'ar')
+        ? "تعذر الاتصال بخدمة التعرف على الوجه: " + err.message
+        : "Could not connect to face recognition service: " + err.message;
+}
 });
 
 const usernameInput = document.querySelector("input[name='username']");
@@ -1089,6 +1114,5 @@ function togglePassword(eyeElement) {
     }
 }
 </script>
-
 </body>
 </html>

@@ -332,12 +332,16 @@ function formatStatus($status, $lang='en') {
                 <a href="dashboard.php" class="btn-dash">
                     <i class="fa-solid fa-chevron-left"></i> <?= $lang==='ar' ? 'لوحة التحكم' : 'Dashboard' ?>
                 </a>
-                <a href="book_appointment.php" class="btn-add">
+                <a href="services.php" class="btn-add">
                     <i class="fa-solid fa-calendar-plus"></i> <?= $lang==='ar' ? 'حجز موعد' : 'Book New' ?>
                 </a>
             </div>
         </div>
-
+    <?php if (isset($_GET['booked']) && $_GET['booked'] == '1'): ?>
+        <div style="background:#dcfce7;color:#166534;border:1px solid #86efac;padding:12px 16px;border-radius:12px;margin-bottom:16px;font-weight:700;">
+            <?= $lang === 'ar' ? 'تم حجز الموعد بنجاح.' : 'Appointment booked successfully.' ?>
+        </div>
+    <?php endif; ?>
         <table>
             <thead>
                 <tr>

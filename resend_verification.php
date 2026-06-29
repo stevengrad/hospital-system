@@ -154,7 +154,9 @@ function sendVerificationEmailSMTP($toEmail, $username, $plainPassword, $verifyU
         SMTP_PASS=your_gmail_app_password
     */
     $smtpUser = getenv('SMTP_USER') ?: 'cairohospitals0@gmail.com';
-    $smtpPass = getenv('SMTP_PASS') ?: 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE';
+    $smtpPass = getenv('SMTP_PASS') ?: 'ocafuqbtzleqtbgk';
+    $smtpHost = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
+    $smtpPort = intval(getenv('SMTP_PORT') ?: 587);
     $fromName = 'Cairo Hospitals';
 
     if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {

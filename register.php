@@ -235,8 +235,10 @@ function field_error($key, $fieldErrors) {
    Put your Gmail App Password below
 ========================= */
 function sendWelcomeCredentialsEmailSMTP($toEmail, $username, $plainPassword, $lang, $texts) {
-    $smtpUser = 'cairohospitals0@gmail.com';
-    $smtpPass = 'dnpoxjybarrdwhxd';
+    $smtpUser = getenv('SMTP_USER') ?: 'cairohospitals0@gmail.com';
+$smtpPass = getenv('SMTP_PASS') ?: '';
+$smtpHost = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
+$smtpPort = intval(getenv('SMTP_PORT') ?: 587);
     $fromName = 'Cairo Hospitals';
 
     if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {
@@ -263,12 +265,12 @@ $mail->SMTPOptions = [
     ],
 ];
 
-$mail->Host       = 'smtp.gmail.com';
+$mail->Host       = $smtpHost;
 $mail->SMTPAuth   = true;
 $mail->Username   = $smtpUser;
 $mail->Password   = $smtpPass;
 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-$mail->Port       = 587;
+$mail->Port       = $smtpPort;
 $mail->CharSet    = 'UTF-8';
 
         $mail->setFrom($smtpUser, $fromName);
@@ -319,8 +321,10 @@ function app_base_url() {
 }
 
 function sendVerificationEmailSMTP($toEmail, $username, $plainPassword, $verifyUrl, $expiresSeconds =600) {
-    $smtpUser = 'cairohospitals0@gmail.com';
-    $smtpPass = 'dnpoxjybarrdwhxd';
+    $smtpUser = getenv('SMTP_USER') ?: 'cairohospitals0@gmail.com';
+$smtpPass = getenv('SMTP_PASS') ?: '';
+$smtpHost = getenv('SMTP_HOST') ?: 'smtp.gmail.com';
+$smtpPort = intval(getenv('SMTP_PORT') ?: 587);
     $fromName = 'Cairo Hospitals';
 
     if (empty($toEmail) || empty($smtpUser) || empty($smtpPass) || $smtpPass === 'PUT_YOUR_GMAIL_APP_PASSWORD_HERE') {
@@ -339,12 +343,12 @@ function sendVerificationEmailSMTP($toEmail, $username, $plainPassword, $verifyU
             ],
         ];
 
-        $mail->Host       = 'smtp.gmail.com';
+        $mail->Host       = $smtpHost;
         $mail->SMTPAuth   = true;
         $mail->Username   = $smtpUser;
         $mail->Password   = $smtpPass;
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->Port       = $smtpPort;
         $mail->CharSet    = 'UTF-8';
 
         $mail->setFrom($smtpUser, $fromName);
@@ -1817,12 +1821,32 @@ startFaceScanBtn.addEventListener('click', async () => {
 /* =========================
    Submit validation with inline errors only
 ========================= */
+
+/* =========================
+   Submit validation with inline errors only
+========================= */
 document.getElementById('registerForm').addEventListener('submit', function(e) {
     let hasError = false;
-    const requiredFields = ['first_name','last_name','username','national_id','password','confirm_password','gender','governorate','birthdate','contact_number','email','address'];
+
+    const requiredFields = [
+        'first_name',
+        'last_name',
+        'username',
+        'national_id',
+        'password',
+        'confirm_password',
+        'gender',
+        'governorate',
+        'birthdate',
+        'contact_number',
+        'email',
+        'address'
+    ];
+
     requiredFields.forEach(id => {
         const el = document.getElementById(id);
         clearError(id);
+
         if (!el || !String(el.value || '').trim()) {
             setError(id, messages.required);
             hasError = true;
@@ -1830,6 +1854,7 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
     });
 
     const nid = document.getElementById('national_id').value.trim();
+
     if (nid && !/^\d{14}$/.test(nid)) {
         setError('national_id', messages.nid);
         hasError = true;
@@ -1850,16 +1875,19 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
     }
 
     const email = document.getElementById('email').value.trim();
+
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         setError('email', messages.email);
         hasError = true;
     }
 
     const birthdate = document.getElementById('birthdate').value;
+
     if (birthdate) {
         const selected = new Date(birthdate);
         const today = new Date();
-        today.setHours(0,0,0,0);
+        today.setHours(0, 0, 0, 0);
+
         if (selected > today) {
             setError('birthdate', messages.birthdate);
             hasError = true;
@@ -1868,15 +1896,22 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
 
     const nidFile = document.getElementById('nid_photo');
     const oldNidPhoto = document.getElementById('old_national_id_photo');
+
     clearError('nid_photo');
-    if ((!nidFile.files || nidFile.files.length === 0) && (!oldNidPhoto || oldNidPhoto.value.trim() === '')) {
+
+    if (
+        (!nidFile.files || nidFile.files.length === 0) &&
+        (!oldNidPhoto || oldNidPhoto.value.trim() === '')
+    ) {
         setError('nid_photo', messages.required);
         hasError = true;
     }
 
     clearError('face_images_json');
+
     try {
         const parsed = JSON.parse(faceImagesInput.value || '[]');
+
         if (!Array.isArray(parsed) || parsed.length < TOTAL_REQUIRED) {
             setError('face_images_json', messages.face);
             hasError = true;
@@ -1888,13 +1923,19 @@ document.getElementById('registerForm').addEventListener('submit', function(e) {
 
     if (hasError) {
         e.preventDefault();
+
         const firstError = document.querySelector('.invalid, .field-error:not(:empty)');
+
         if (firstError) {
-            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstError.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
         }
     }
 });
 </script>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const nidPhotoInput = document.getElementById("nid_photo");
@@ -1905,7 +1946,8 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
-    // Lock National ID from the start
+    const OCR_URL = "/ocr/extract-id";
+
     nationalIdInput.value = nationalIdInput.value || "";
     nationalIdInput.readOnly = true;
     nationalIdInput.setAttribute("readonly", "readonly");
@@ -1926,22 +1968,50 @@ document.addEventListener("DOMContentLoaded", function () {
         ocrStatus.style.color = "#64748b";
 
         try {
-            const response = await fetch("http://localhost:5050/ocr/extract-id", {
+            const response = await fetch(OCR_URL, {
                 method: "POST",
-                body: formData
+                body: formData,
+                cache: "no-store"
             });
 
-            const data = await response.json();
+            const rawText = await response.text();
+
+            console.log("OCR HTTP status:", response.status);
+            console.log("OCR raw response:", rawText);
+
+            if (!response.ok) {
+                nationalIdInput.value = "";
+                nationalIdInput.readOnly = true;
+                nationalIdInput.setAttribute("readonly", "readonly");
+
+                ocrStatus.textContent = "OCR request failed. HTTP " + response.status + ". Check OCR service or image size.";
+                ocrStatus.style.color = "#dc2626";
+                return;
+            }
+
+            let data;
+
+            try {
+                data = JSON.parse(rawText);
+            } catch (jsonError) {
+                nationalIdInput.value = "";
+                nationalIdInput.readOnly = true;
+                nationalIdInput.setAttribute("readonly", "readonly");
+
+                ocrStatus.textContent = "OCR returned invalid response. Please check OCR API logs.";
+                ocrStatus.style.color = "#dc2626";
+                console.error("Invalid OCR JSON:", rawText);
+                return;
+            }
 
             if (data.success && data.id_number) {
                 nationalIdInput.value = data.id_number;
 
-                // Keep National ID locked
                 nationalIdInput.readOnly = true;
                 nationalIdInput.setAttribute("readonly", "readonly");
                 nationalIdInput.removeAttribute("disabled");
 
-                ocrStatus.textContent = "National ID extracted successfully";
+                ocrStatus.textContent = "National ID extracted successfully.";
                 ocrStatus.style.color = "#16a34a";
 
                 if (typeof clearError === "function") {
@@ -1950,24 +2020,25 @@ document.addEventListener("DOMContentLoaded", function () {
             } else {
                 nationalIdInput.value = "";
 
-                // Keep National ID locked
                 nationalIdInput.readOnly = true;
                 nationalIdInput.setAttribute("readonly", "readonly");
                 nationalIdInput.removeAttribute("disabled");
 
-                ocrStatus.textContent = "Could not read National ID. Please upload a clearer image.";
+                ocrStatus.textContent = "Could not read National ID. OCR response: " + JSON.stringify(data);
                 ocrStatus.style.color = "#dc2626";
             }
+
         } catch (error) {
             nationalIdInput.value = "";
 
-            // Keep National ID locked
             nationalIdInput.readOnly = true;
             nationalIdInput.setAttribute("readonly", "readonly");
             nationalIdInput.removeAttribute("disabled");
 
-            ocrStatus.textContent = "OCR service error. Pl ease upload the image again.";
+            ocrStatus.textContent = "OCR connection error: " + error.message;
             ocrStatus.style.color = "#dc2626";
+
+            console.error("OCR fetch error:", error);
         }
     });
 });
