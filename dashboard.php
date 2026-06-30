@@ -1427,6 +1427,7 @@ function openChatbotSection() {
             const res = await fetch("book_appointment.php", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
                 body: JSON.stringify({
                     doctor_id: slot.doctor_id ?? slot.doctorId ?? slot.DoctorID ?? null,
                     branch_id: slot.branch_id ?? slot.branchId ?? slot.BranchID ?? null,

@@ -80,109 +80,229 @@ if ($patient_id <= 0) {
 /* =========================
    Direct Booking Without API
 ========================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $patient_id > 0) {
-    $doctor_id = isset($_POST['doctor_id']) ? (int)$_POST['doctor_id'] : 0;
-    $branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : 0;
-    $start_raw = trim($_POST['start'] ?? "");
+/* =========================
+   Direct Booking Without API
+   Supports:
+   1) Normal form POST
+   2) JSON POST from chatbot/dashboard slot buttons
+========================= */
 
-    if ($doctor_id <= 0 || $branch_id <= 0 || $start_raw === "") {
-        $error = "Please select doctor, branch, and appointment time.";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $contentType = $_SERVER["CONTENT_TYPE"] ?? "";
+    $isJsonRequest = (stripos($contentType, "application/json") !== false);
+
+    if ($patient_id <= 0) {
+        $error = "No PatientID linked to this account. Please login again.";
+
+        if ($isJsonRequest) {
+            header("Content-Type: application/json; charset=UTF-8");
+            http_response_code(401);
+            echo json_encode([
+                "booked" => false,
+                "message" => $error,
+                "debug" => [
+                    "session_user_id" => $_SESSION["user_id"] ?? null,
+                    "patient_id" => $patient_id
+                ]
+            ], JSON_UNESCAPED_UNICODE);
+            exit();
+        }
     } else {
-        $start_clean = str_replace("T", " ", $start_raw);
 
-        if (strlen($start_clean) === 16) {
-            $start_clean .= ":00";
+        if ($isJsonRequest) {
+            $input = json_decode(file_get_contents("php://input"), true);
+
+            $doctor_id = isset($input['doctor_id']) ? (int)$input['doctor_id'] : 0;
+            $branch_id = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
+            $start_raw = trim($input['start'] ?? "");
+        } else {
+            $doctor_id = isset($_POST['doctor_id']) ? (int)$_POST['doctor_id'] : 0;
+            $branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : 0;
+            $start_raw = trim($_POST['start'] ?? "");
         }
 
-        $timestamp = strtotime($start_clean);
+        if ($doctor_id <= 0 || $branch_id <= 0 || $start_raw === "") {
+            $error = "Please select doctor, branch, and appointment time.";
 
-        if (!$timestamp) {
-            $error = "Invalid appointment date.";
+            if ($isJsonRequest) {
+                header("Content-Type: application/json; charset=UTF-8");
+                http_response_code(400);
+                echo json_encode([
+                    "booked" => false,
+                    "message" => $error,
+                    "debug" => [
+                        "patient_id" => $patient_id,
+                        "doctor_id" => $doctor_id,
+                        "branch_id" => $branch_id,
+                        "start" => $start_raw
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
         } else {
-            $appointment_datetime = date("Y-m-d H:i:s", $timestamp);
+            $start_clean = str_replace("T", " ", $start_raw);
 
-            if ($timestamp < time()) {
-                $error = "You cannot book an appointment in the past.";
+            if (strlen($start_clean) === 16) {
+                $start_clean .= ":00";
+            }
+
+            $timestamp = strtotime($start_clean);
+
+            if (!$timestamp) {
+                $error = "Invalid appointment date.";
+            } else {
+                $appointment_datetime = date("Y-m-d H:i:s", $timestamp);
+
+                if ($timestamp < time()) {
+                    $error = "You cannot book an appointment in the past.";
+                }
+            }
+
+            if (!empty($error) && $isJsonRequest) {
+                header("Content-Type: application/json; charset=UTF-8");
+                http_response_code(400);
+                echo json_encode([
+                    "booked" => false,
+                    "message" => $error
+                ], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+        }
+
+        if (empty($error)) {
+            $stmt = $conn->prepare("
+                SELECT AppointmentID 
+                FROM appointments 
+                WHERE DoctorID = ? 
+                  AND AppointmentDateTime = ? 
+                  AND Status <> 'Canceled'
+                LIMIT 1
+            ");
+
+            if (!$stmt) {
+                $error = "Database prepare failed: " . $conn->error;
+
+                if ($isJsonRequest) {
+                    header("Content-Type: application/json; charset=UTF-8");
+                    http_response_code(500);
+                    echo json_encode([
+                        "booked" => false,
+                        "message" => $error
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+            } else {
+                $stmt->bind_param("is", $doctor_id, $appointment_datetime);
+                $stmt->execute();
+                $check = $stmt->get_result();
+
+                if ($check && $check->num_rows > 0) {
+                    $error = "This appointment slot is already booked. Please choose another time.";
+                }
+
+                $stmt->close();
+
+                if (!empty($error) && $isJsonRequest) {
+                    header("Content-Type: application/json; charset=UTF-8");
+                    http_response_code(409);
+                    echo json_encode([
+                        "booked" => false,
+                        "message" => $error
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+            }
+        }
+
+        if (empty($error)) {
+            $branchColumn = first_existing_column($conn, "appointments", [
+                "BranchID",
+                "branch_id",
+                "BranchId"
+            ]);
+
+            $status = "Pending";
+
+            if ($branchColumn) {
+                $safeBranchColumn = str_replace("`", "", $branchColumn);
+
+                $sql = "
+                    INSERT INTO appointments 
+                        (PatientID, DoctorID, `$safeBranchColumn`, AppointmentDateTime, Status)
+                    VALUES 
+                        (?, ?, ?, ?, ?)
+                ";
+
+                $stmt = $conn->prepare($sql);
+
+                if ($stmt) {
+                    $stmt->bind_param(
+                        "iiiss",
+                        $patient_id,
+                        $doctor_id,
+                        $branch_id,
+                        $appointment_datetime,
+                        $status
+                    );
+                }
+            } else {
+                $sql = "
+                    INSERT INTO appointments 
+                        (PatientID, DoctorID, AppointmentDateTime, Status)
+                    VALUES 
+                        (?, ?, ?, ?)
+                ";
+
+                $stmt = $conn->prepare($sql);
+
+                if ($stmt) {
+                    $stmt->bind_param(
+                        "iiss",
+                        $patient_id,
+                        $doctor_id,
+                        $appointment_datetime,
+                        $status
+                    );
+                }
+            }
+
+            if ($stmt && $stmt->execute()) {
+                $newAppointmentId = $stmt->insert_id;
+                $stmt->close();
+
+                if ($isJsonRequest) {
+                    header("Content-Type: application/json; charset=UTF-8");
+                    echo json_encode([
+                        "booked" => true,
+                        "message" => "Appointment booked successfully.",
+                        "appointment_id" => $newAppointmentId,
+                        "patient_id" => $patient_id,
+                        "doctor_id" => $doctor_id,
+                        "branch_id" => $branch_id,
+                        "start" => $appointment_datetime
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
+
+                header("Location: my_appointments.php?booked=1&lang=" . urlencode($lang));
+                exit();
+            } else {
+                $error = "Database booking failed: " . $conn->error;
+
+                if ($isJsonRequest) {
+                    header("Content-Type: application/json; charset=UTF-8");
+                    http_response_code(500);
+                    echo json_encode([
+                        "booked" => false,
+                        "message" => $error
+                    ], JSON_UNESCAPED_UNICODE);
+                    exit();
+                }
             }
         }
     }
-
-    if (empty($error)) {
-        $stmt = $conn->prepare("
-            SELECT AppointmentID 
-            FROM appointments 
-            WHERE DoctorID = ? 
-              AND AppointmentDateTime = ? 
-              AND Status <> 'Canceled'
-            LIMIT 1
-        ");
-        $stmt->bind_param("is", $doctor_id, $appointment_datetime);
-        $stmt->execute();
-        $check = $stmt->get_result();
-
-        if ($check && $check->num_rows > 0) {
-            $error = "This appointment slot is already booked. Please choose another time.";
-        }
-
-        $stmt->close();
-    }
-
-    if (empty($error)) {
-        $branchColumn = first_existing_column($conn, "appointments", [
-            "BranchID",
-            "branch_id",
-            "BranchId"
-        ]);
-
-        $status = "Pending";
-
-        if ($branchColumn) {
-            $safeBranchColumn = str_replace("`", "", $branchColumn);
-
-            $sql = "
-                INSERT INTO appointments 
-                    (PatientID, DoctorID, `$safeBranchColumn`, AppointmentDateTime, Status)
-                VALUES 
-                    (?, ?, ?, ?, ?)
-            ";
-
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param(
-                "iiiss",
-                $patient_id,
-                $doctor_id,
-                $branch_id,
-                $appointment_datetime,
-                $status
-            );
-        } else {
-            $sql = "
-                INSERT INTO appointments 
-                    (PatientID, DoctorID, AppointmentDateTime, Status)
-                VALUES 
-                    (?, ?, ?, ?)
-            ";
-
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param(
-                "iiss",
-                $patient_id,
-                $doctor_id,
-                $appointment_datetime,
-                $status
-            );
-        }
-
-        if ($stmt && $stmt->execute()) {
-            $stmt->close();
-            header("Location: my_appointments.php?booked=1&lang=" . urlencode($lang));
-            exit();
-        } else {
-            $error = "Database booking failed: " . $conn->error;
-        }
-    }
 }
-
 /* =========================
    Fetch Specialties
 ========================= */
