@@ -68,15 +68,15 @@ if (!empty($specialtiesFromDoctors)) {
     $types        = '';
 
     foreach ($specialtiesFromDoctors as $spec) {
-        $placeholders[] = "ServiceName LIKE ?";
+        $placeholders[] = "Name LIKE ?";
         $params[]       = "%" . $spec . "%";
         $types         .= 's';
     }
 
     $service_sql = "
-        SELECT ServiceID, ServiceName, Description, Price
-        FROM services
-        WHERE " . implode(' OR ', $placeholders);
+        SELECT SpecialtyID AS ServiceID, Name AS ServiceName, '' AS Description, 0 AS Price
+        FROM specialties
+        WHERE " . implode(' OR ', $placeholders). " ORDER BY Name ASC ";
 
     $stmt_srv = $conn->prepare($service_sql);
     $stmt_srv->bind_param($types, ...$params);
@@ -89,9 +89,10 @@ if (!empty($specialtiesFromDoctors)) {
 } else {
     // No doctors found; search services by the query text itself
     $service_sql = "
-        SELECT ServiceID, ServiceName, Description, Price
-        FROM services
-        WHERE ServiceName LIKE ?
+        SELECT SpecialtyID AS ServiceID, Name AS ServiceName,'' AS Description, 0 AS Price
+        FROM specialties
+        WHERE Name LIKE ?
+        ORDER BY Name ASC
     ";
     $stmt_srv = $conn->prepare($service_sql);
     $stmt_srv->bind_param("s", $q_like);
@@ -198,10 +199,17 @@ if (!empty($specialtiesFromDoctors)) {
                             </h5>
                             <p class="mb-1">
                                 <?= htmlspecialchars($srv['Description']) ?>
-                            </p>
+
                             <p class="fw-bold mb-0">
                                 Price: <?= number_format((float)$srv['Price'], 2) ?> EGP
                             </p>
+
+                            <a
+                                href="book_appointment.php?specialty_id=<?= (int)$srv['ServiceID'] ?>" 
+                                class="btn btn-primary mt-3"
+                                >
+                                Book Appointment
+                            </a>
                         </div>
                     </div>
                 <?php endforeach; ?>

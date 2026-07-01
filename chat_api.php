@@ -1,5 +1,9 @@
 <?php
+session_start();
+include("db_connect.php");
+
 header("Content-Type: application/json; charset=UTF-8");
+
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -90,9 +94,6 @@ if ($message === "" && !$hasAttachment && !$hasAudio) {
     exit;
 }
 
-if (isset($_POST["patient_id"]) && $_POST["patient_id"] !== "") {
-    $_SESSION["patient_id"] = (int)$_POST["patient_id"];
-}
 
 $username = $_SESSION["username"] ?? null;
 $display_name = $_SESSION["first_name"] ?? ($_SESSION["name"] ?? null);
@@ -114,9 +115,7 @@ $payloadArr = [
     "chat_id" => $chat_id,
 ];
 
-if (isset($_SESSION["patient_id"]) && $_SESSION["patient_id"] !== "") {
-    $payloadArr["patient_id"] = (int)$_SESSION["patient_id"];
-}
+
 
 function attach_uploaded_file(&$payloadArr, $fieldNames, $targetName) {
     foreach ($fieldNames as $key) {
@@ -166,13 +165,6 @@ if ($httpCode < 200 || $httpCode >= 300) {
     exit;
 }
 
-$decoded = json_decode($response, true);
-if (is_array($decoded) && (($decoded["intent"] ?? "") === "patient_id_set")) {
-    $pid = $decoded["data"]["patient_id"] ?? null;
-    if ($pid !== null && $pid !== "") {
-        $_SESSION["patient_id"] = (int)$pid;
-    }
-}
 
 echo $response;
 ?>
