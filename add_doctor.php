@@ -110,23 +110,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($email === '') $email = 'doc' . strtolower($firstName) . rand(1000, 9999) . '@cairohosp.com';
             $generatedUsername = 'doc' . strtolower($firstName) . rand(100, 999);
             $generatedPassword = generateDoctorPassword();
-            $passwordHash      = password_hash($generatedPassword, PASSWORD_DEFAULT);
+            $passwordHash = password_hash($generatedPassword, PASSWORD_DEFAULT);
 
             // Get Next License
             $licRes = $conn->query("SELECT LicenseNumber FROM doctors ORDER BY CAST(LicenseNumber AS UNSIGNED) DESC LIMIT 1");
             $generatedLicense = ($licRes && $licRes->num_rows > 0) ? (int)$licRes->fetch_assoc()['LicenseNumber'] + 1 : 1001;
 
             // Insert Employee
-            $stmtEmp = $conn->prepare("INSERT INTO employees (BranchID, NationalID, Role, FirstName, LastName, ContactPhone, Email, HireDate, DoctorUsername, PasswordHash) VALUES (?, ?, 'Doctor', ?, ?, ?, ?, ?, ?, ?)");
-            $stmtEmp->bind_param("issssssss", $branchID, $nationalID, $firstName, $lastName, $phone, $email, $hireDate, $generatedUsername, $passwordHash);
+            $stmtEmp = $conn->prepare("
+                INSERT INTO employees 
+                    (BranchID, NationalID, Role, FirstName, LastName, ContactPhone, Email, HireDate, DoctorUsername) 
+                VALUES 
+                    (?, ?, 'Doctor', ?, ?, ?, ?, ?, ?)
+            ");
+
+            $stmtEmp->bind_param(
+                "isssssss",
+                $branchID,
+                $nationalID,
+                $firstName,
+                $lastName,
+                $phone,
+                $email,
+                $hireDate,
+                $generatedUsername
+            );
+
             $stmtEmp->execute();
             $employeeID = $stmtEmp->insert_id;
+            $stmtEmp->close();
+
 
             // Insert Doctor
-            $stmtDoc = $conn->prepare("INSERT INTO doctors (EmployeeID, SpecialtyID, LicenseNumber, ConsultationFee) VALUES (?, ?, ?, ?)");
-            $stmtDoc->bind_param("iisd", $employeeID, $specialtyID, $generatedLicense, $fee);
-            $stmtDoc->execute();
+            $stmtDoc = $conn->prepare("
+                INSERT INTO doctors 
+                    (EmployeeID, SpecialtyID, LicenseNumber, ConsultationFee, DoctorUsername) 
+                VALUES 
+                    (?, ?, ?, ?, ?)
+            ");
 
+            $stmtDoc->bind_param(
+                "iisds",
+                $employeeID,
+                $specialtyID,
+                $generatedLicense,
+                $fee,
+                $generatedUsername
+            );
+
+            $stmtDoc->execute();
+            $stmtDoc->close();
+
+
+            // Insert Login Account
+            $stmtLogin = $conn->prepare("
+                INSERT INTO login 
+                    (username, password, national_id, role) 
+                VALUES 
+                    (?, ?, ?, 'doctor')
+            ");
+
+            $stmtLogin->bind_param(
+                "sss",
+                $generatedUsername,
+                $passwordHash,
+                $nationalID
+            );
+
+            $stmtLogin->execute();
+            $stmtLogin->close();
+
+
+            // Insert Registration Row
+            $stmtReg = $conn->prepare("
+                INSERT INTO registration 
+                    (first_name, last_name, username, password, national_id, gender, government, birthdate, address, email, phone_number)
+                VALUES
+                    (?, ?, ?, ?, ?, 'Male', 'Cairo', '1990-01-01', 'Hospital Staff Housing', ?, ?)
+            ");
+
+            $stmtReg->bind_param(
+                "sssssss",
+                $firstName,
+                $lastName,
+                $generatedUsername,
+                $passwordHash,
+                $nationalID,
+                $email,
+                $phone
+            );
+
+            $stmtReg->execute();
+            $stmtReg->close();
             $conn->commit();
             $successMsg = "Success";
             $showForm = false;

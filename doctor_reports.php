@@ -107,8 +107,8 @@ $patientCol    = first_existing_column($recordCols, ['PatientID']);
 $doctorCol     = first_existing_column($recordCols, ['DoctorID', 'EmployeeID']);
 $visitDateCol  = first_existing_column($recordCols, ['VisitDate', 'Visit_Date', 'RecordDate', 'CreatedAt']);
 $diagnosisCol  = first_existing_column($recordCols, ['Diagnosis', 'Diagnoses']);
-$treatmentCol  = first_existing_column($recordCols, ['Treatment', 'TreatmentPlan', 'Treatment_Plan']);
-$notesCol      = first_existing_column($recordCols, ['Notes', 'AdditionalNotes', 'Note']);
+$treatmentCol  = first_existing_column($recordCols, ['TreatmentNotes', 'Treatment', 'TreatmentPlan', 'Treatment_Plan']);
+$notesCol      = first_existing_column($recordCols, ['ChiefComplaint', 'Notes', 'AdditionalNotes', 'Note']);
 
 /* =========================
    Handle New Report Submission

@@ -63,16 +63,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $diagnosis        = trim($_POST['diagnosis'] ?? '');
     $treatment        = trim($_POST['treatment'] ?? '');
 
-    if ($patient_username !== '' && $doctor_name !== '' && $diagnosis !== '' && $treatment !== '') {
-        $stmt = $conn->prepare("INSERT INTO patient_history (patient_username, visit_date, doctor_name, diagnosis, treatment) VALUES (?, ?, ?, ?, ?)");
-        if ($stmt) {
-            $stmt->bind_param("sssss", $patient_username, $visit_date, $doctor_name, $diagnosis, $treatment);
-            if ($stmt->execute()) { $success = $t['msg_success']; } 
-            else { $error = $t['msg_db'] . $stmt->error; }
-            $stmt->close();
+/* Make sure patient_username exists in registration table */
+    $validPatientUsername = '';
+
+    if ($patient_username !== '') {
+        $checkPatient = $conn->prepare("
+            SELECT username
+            FROM registration
+            WHERE username = ? OR national_id = ?
+            LIMIT 1
+        ");
+
+        if ($checkPatient) {
+            $checkPatient->bind_param("ss", $patient_username, $patient_username);
+            $checkPatient->execute();
+            $patientResult = $checkPatient->get_result();
+            $patientRow = $patientResult->fetch_assoc();
+            $checkPatient->close();
+
+        if ($patientRow) {
+            $validPatientUsername = $patientRow['username'];
         }
-    } else { $error = $t['msg_fill']; }
+    }
 }
+
+    if ($validPatientUsername !== '' && $doctor_name !== '' && $diagnosis !== '' && $treatment !== '') {
+        $stmt = $conn->prepare("
+            INSERT INTO patient_history 
+                (patient_username, visit_date, doctor_name, diagnosis, treatment) 
+            VALUES 
+                (?, ?, ?, ?, ?)
+        ");
+            if ($stmt) {
+                $stmt->bind_param("sssss", $validPatientUsername, $visit_date, $doctor_name, $diagnosis, $treatment);
+                if ($stmt->execute()) { $success = $t['msg_success']; } 
+                else { $error = $t['msg_db'] . $stmt->error; }
+                $stmt->close();
+            }
+        } else { $error = $t['msg_fill']; }
+    }
 
 /* ---- GET PATIENT LIST ---- */
 $patients = $conn->query("SELECT PatientID, NationalID, FirstName, LastName FROM patients ORDER BY FirstName ASC");
